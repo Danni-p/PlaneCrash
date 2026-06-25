@@ -296,6 +296,7 @@ class _CockpitScreenState extends State<CockpitScreen>
                 phase: state.phase,
                 cruiseProgress: state.cruiseProgress,
                 islandApproach: islandApproach,
+                relativeBearing: state.relativeBearing,
                 stormIntensity: state.stormIntensity,
               ),
               Transform.translate(

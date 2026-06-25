@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 
 import '../engine/bank_interpolator.dart';
+import '../engine/navigation_engine.dart';
 import '../engine/physics_engine.dart';
 import '../engine/weather_ramp.dart';
 import 'broadcast_message.dart';
@@ -14,9 +15,8 @@ import 'weather_inputs.dart';
 /// values for the UI to render.
 ///
 /// Time is driven externally: the cockpit screen calls [advance] once per frame
-/// with the elapsed delta. Discrete physics is applied in whole-second steps so
-/// the sink/approach numbers stay predictable, while weather and bank values are
-/// interpolated every frame for smooth visuals.
+/// with the elapsed delta. Altitude and 2D navigation are integrated every frame
+/// from that delta, as are the smoothed weather and bank values.
 class GameState extends ChangeNotifier {
   /// How long the malfunction alarm plays before briefing begins. Shared so the
   /// cockpit and controllers advance from malfunction to briefing in step.
@@ -25,14 +25,24 @@ class GameState extends ChangeNotifier {
   /// Seconds for the distant land to visually approach during cruise.
   static const double _cruiseApproachSeconds = 25.0;
 
+  /// Default plane/island layout used before the emergency reveals the island.
+  /// Plane at the origin, island straight ahead at the starting distance.
+  static const NavigationState _initialNav =
+      NavigationState(planeX: 0, planeY: 0, headingRad: 0);
+  static const math.Point<double> _initialIsland =
+      math.Point<double>(0, PhysicsEngine.initialDistance);
+
   GamePhase _phase = GamePhase.waiting;
   double _altitude = PhysicsEngine.initialAltitude;
-  double _distanceToIsland = PhysicsEngine.initialDistance;
   double _distanceSpeed = PhysicsEngine.defaultDistanceSpeed;
   int _counterLeft = 0;
   int _counterRight = 0;
   WeatherInputs _weather = const WeatherInputs();
   double _cruiseProgress = 0.0;
+
+  NavigationState _nav = _initialNav;
+  math.Point<double> _island = _initialIsland;
+  final math.Random _random = math.Random();
 
   final WeatherRamp _stormRamp = WeatherRamp(timeToTarget: 12.0);
   final WeatherRamp _windRamp = WeatherRamp(timeToTarget: 8.0);
@@ -41,13 +51,22 @@ class GameState extends ChangeNotifier {
   int _peakLeft = 0;
   int _peakRight = 0;
   double _elapsedSeconds = 0.0;
-  double _secondAccumulator = 0.0;
 
   // --- Public read-only state ---
 
   GamePhase get phase => _phase;
   double get altitude => _altitude;
-  double get distanceToIsland => _distanceToIsland;
+
+  /// Straight-line distance to the island in metres, derived from the plane's
+  /// current map position. Grows when the plane steers away from the island.
+  double get distanceToIsland =>
+      NavigationEngine.distanceTo(state: _nav, island: _island);
+
+  /// Bearing to the island relative to the plane's heading, in radians and
+  /// normalized to `[-pi, pi]`. Zero is dead ahead; positive is to the right.
+  double get relativeBearing =>
+      NavigationEngine.relativeBearing(state: _nav, island: _island);
+
   double get distanceSpeed => _distanceSpeed;
   int get counterLeft => _counterLeft;
   int get counterRight => _counterRight;
@@ -84,11 +103,7 @@ class GameState extends ChangeNotifier {
     }
 
     if (_phase == GamePhase.emergency) {
-      _secondAccumulator += dt;
-      while (_secondAccumulator >= 1.0 && _phase == GamePhase.emergency) {
-        _secondAccumulator -= 1.0;
-        _stepOneSecond();
-      }
+      _stepEmergency(dt);
     }
 
     notifyListeners();
@@ -118,17 +133,38 @@ class GameState extends ChangeNotifier {
     );
   }
 
-  void _stepOneSecond() {
-    _elapsedSeconds += 1.0;
+  /// Integrates altitude and 2D navigation for one frame. Altitude falls at the
+  /// crew/storm sink rate; the plane flies at a constant ground speed along its
+  /// heading while bank angle turns it. The run ends when altitude hits zero.
+  void _stepEmergency(double dt) {
+    _elapsedSeconds += dt;
     final loss = PhysicsEngine.altitudeLossPerSecond(
       activeTotal: activeTotal,
       stormIntensity: _stormRamp.value,
     );
-    _altitude = math.max(0.0, _altitude - loss);
-    _distanceToIsland = math.max(0.0, _distanceToIsland - _distanceSpeed);
+    _altitude = math.max(0.0, _altitude - loss * dt);
+    _nav = NavigationEngine.step(
+      state: _nav,
+      bankDegrees: _bank.value,
+      groundSpeed: _distanceSpeed,
+      turnRatePerBankDegree: PhysicsEngine.turnRatePerBankDegree,
+      dt: dt,
+    );
     if (_altitude <= 0.0) {
       _phase = GamePhase.finished;
     }
+  }
+
+  /// Places the island at a random bearing one [PhysicsEngine.initialDistance]
+  /// away and resets the plane to the origin heading north. Called when the
+  /// emergency landing begins so each run faces a different direction.
+  void _initNavigation() {
+    final bearing = _random.nextDouble() * 2 * math.pi;
+    _island = NavigationEngine.islandFromBearing(
+      bearingRad: bearing,
+      distance: PhysicsEngine.initialDistance,
+    );
+    _nav = _initialNav;
   }
 
   // --- Applying broadcast updates from controllers ---
@@ -165,12 +201,12 @@ class GameState extends ChangeNotifier {
       case PhaseAction.startCruise:
         if (_phase == GamePhase.waiting) _phase = GamePhase.cruise;
       case PhaseAction.engineMalfunction:
-        if (_phase == GamePhase.cruise) {
-          _phase = GamePhase.malfunction;
-          _distanceToIsland = PhysicsEngine.initialDistance;
-        }
+        if (_phase == GamePhase.cruise) _phase = GamePhase.malfunction;
       case PhaseAction.startEmergency:
-        if (_phase == GamePhase.briefing) _phase = GamePhase.emergency;
+        if (_phase == GamePhase.briefing) {
+          _phase = GamePhase.emergency;
+          _initNavigation();
+        }
     }
     if (_phase != before) {
       notifyListeners();
@@ -191,16 +227,16 @@ class GameState extends ChangeNotifier {
   void resetToWaiting() {
     _phase = GamePhase.waiting;
     _altitude = PhysicsEngine.initialAltitude;
-    _distanceToIsland = PhysicsEngine.initialDistance;
     _distanceSpeed = PhysicsEngine.defaultDistanceSpeed;
     _counterLeft = 0;
     _counterRight = 0;
     _weather = const WeatherInputs();
     _cruiseProgress = 0.0;
+    _nav = _initialNav;
+    _island = _initialIsland;
     _peakLeft = 0;
     _peakRight = 0;
     _elapsedSeconds = 0.0;
-    _secondAccumulator = 0.0;
     _stormRamp.reset();
     _windRamp.reset();
     _bank.reset();

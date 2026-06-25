@@ -1,17 +1,22 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../models/game_phase.dart';
 
 /// Full-screen background scenery for the cockpit. During cruise a distant
-/// landmass drifts closer (purely cosmetic); from the malfunction onward the
-/// target island grows as the plane approaches it. A thunderstorm darkens the
-/// sky.
+/// landmass drifts closer (purely cosmetic). Once the emergency landing begins
+/// the target island is placed on the horizon according to its bearing relative
+/// to the plane's heading: centered when dead ahead, sliding sideways as the
+/// plane turns, and replaced by an edge arrow once it leaves the field of view.
+/// A thunderstorm darkens the sky.
 class PhaseScenery extends StatelessWidget {
   const PhaseScenery({
     super.key,
     required this.phase,
     required this.cruiseProgress,
     required this.islandApproach,
+    required this.relativeBearing,
     required this.stormIntensity,
   });
 
@@ -22,6 +27,10 @@ class PhaseScenery extends StatelessWidget {
 
   /// Target island approach (1 - distance/initialDistance), 0..1.
   final double islandApproach;
+
+  /// Bearing to the island relative to the plane heading, in radians and
+  /// normalized to `[-pi, pi]`. Zero is dead ahead; positive is to the right.
+  final double relativeBearing;
 
   /// Ramped thunderstorm intensity, 0..1.
   final double stormIntensity;
@@ -34,6 +43,7 @@ class PhaseScenery extends StatelessWidget {
           phase: phase,
           cruiseProgress: cruiseProgress,
           islandApproach: islandApproach,
+          relativeBearing: relativeBearing,
           stormIntensity: stormIntensity,
         ),
       ),
@@ -46,13 +56,20 @@ class _SceneryPainter extends CustomPainter {
     required this.phase,
     required this.cruiseProgress,
     required this.islandApproach,
+    required this.relativeBearing,
     required this.stormIntensity,
   });
 
   final GamePhase phase;
   final double cruiseProgress;
   final double islandApproach;
+  final double relativeBearing;
   final double stormIntensity;
+
+  /// Half of the horizontal field of view. The island is visible while its
+  /// relative bearing stays within `+/- _halfFovRad`; beyond that an edge arrow
+  /// points the way back to it.
+  static const double _halfFovRad = 55 * math.pi / 180;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -62,13 +79,58 @@ class _SceneryPainter extends CustomPainter {
     _paintSea(canvas, size, horizonY);
 
     if (phase == GamePhase.cruise) {
-      _paintLand(canvas, size, horizonY, progress: cruiseProgress, scale: 0.35);
-    } else if (phase == GamePhase.malfunction ||
-        phase == GamePhase.briefing ||
-        phase == GamePhase.emergency ||
-        phase == GamePhase.finished) {
-      _paintLand(canvas, size, horizonY, progress: islandApproach, scale: 1.0);
+      _paintLand(
+        canvas,
+        size,
+        horizonY,
+        centerX: size.width / 2,
+        progress: cruiseProgress,
+        scale: 0.35,
+      );
+    } else if (phase == GamePhase.emergency || phase == GamePhase.finished) {
+      _paintTargetIsland(canvas, size, horizonY);
     }
+  }
+
+  /// Draws the target island offset by its bearing, or an edge arrow when it
+  /// has drifted out of view.
+  void _paintTargetIsland(Canvas canvas, Size size, double horizonY) {
+    if (relativeBearing.abs() > _halfFovRad) {
+      _paintEdgeArrow(canvas, size, horizonY, toRight: relativeBearing > 0);
+      return;
+    }
+    final centerX = size.width / 2 +
+        (relativeBearing / _halfFovRad) * (size.width / 2);
+    _paintLand(
+      canvas,
+      size,
+      horizonY,
+      centerX: centerX,
+      progress: islandApproach,
+      scale: 1.0,
+    );
+  }
+
+  /// Draws a chevron on the left or right screen edge pointing toward the
+  /// island when it is off-screen.
+  void _paintEdgeArrow(
+    Canvas canvas,
+    Size size,
+    double horizonY, {
+    required bool toRight,
+  }) {
+    const margin = 18.0;
+    const halfHeight = 26.0;
+    const depth = 28.0;
+    final tipX = toRight ? size.width - margin : margin;
+    final baseX = toRight ? tipX - depth : tipX + depth;
+    final path = Path()
+      ..moveTo(tipX, horizonY)
+      ..lineTo(baseX, horizonY - halfHeight)
+      ..lineTo(baseX, horizonY + halfHeight)
+      ..close();
+    final paint = Paint()..color = const Color(0xFF39FF14);
+    canvas.drawPath(path, paint);
   }
 
   void _paintSky(Canvas canvas, Size size, double horizonY) {
@@ -103,20 +165,21 @@ class _SceneryPainter extends CustomPainter {
     );
   }
 
-  /// Draws the landmass sitting on the horizon. [progress] (0..1) drives how
-  /// large and close it appears; [scale] caps the maximum size (cruise land
-  /// stays small and distant, the target island can fill more of the view).
+  /// Draws the landmass sitting on the horizon at [centerX]. [progress] (0..1)
+  /// drives how large and close it appears; [scale] caps the maximum size
+  /// (cruise land stays small and distant, the target island can fill more of
+  /// the view).
   void _paintLand(
     Canvas canvas,
     Size size,
     double horizonY, {
+    required double centerX,
     required double progress,
     required double scale,
   }) {
     final t = progress.clamp(0.0, 1.0);
     final width = size.width * (0.18 + 0.55 * t) * scale;
     final height = size.height * (0.05 + 0.22 * t) * scale;
-    final centerX = size.width / 2;
 
     final landPaint = Paint()..color = const Color(0xFF2F7D32);
     final path = Path()
@@ -159,6 +222,7 @@ class _SceneryPainter extends CustomPainter {
     return oldDelegate.phase != phase ||
         oldDelegate.cruiseProgress != cruiseProgress ||
         oldDelegate.islandApproach != islandApproach ||
+        oldDelegate.relativeBearing != relativeBearing ||
         oldDelegate.stormIntensity != stormIntensity;
   }
 }

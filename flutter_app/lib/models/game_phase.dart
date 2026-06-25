@@ -11,7 +11,7 @@ enum GamePhase {
   emergency,
   finished;
 
-  /// Whether the 1 Hz physics loop should run in this phase.
+  /// Whether the per-frame physics loop should run in this phase.
   bool get isSimulating => this == GamePhase.emergency;
 
   String toJson() => name;

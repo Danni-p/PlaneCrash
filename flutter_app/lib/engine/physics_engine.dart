@@ -32,6 +32,11 @@ abstract final class PhysicsEngine {
   /// Default island approach speed in metres per second.
   static const double defaultDistanceSpeed = 15.0;
 
+  /// Turn rate in radians per second for each degree of bank. At the default a
+  /// sustained 30 degree bank turns the plane roughly 60 degrees per second,
+  /// which produces a visible curve without spinning on the spot.
+  static const double turnRatePerBankDegree = 0.035;
+
   /// Altitude lost in one second for the given active crew and storm intensity.
   ///
   /// [stormIntensity] is the ramped thunderstorm strength in the range 0..1.

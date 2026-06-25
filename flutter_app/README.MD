@@ -39,9 +39,9 @@ Success ◀──(altitude = 0)── Emergency ◀──(Notlandung starten)─
 
 - **Waiting**: The Cockpit shows the room code and waits for Controllers. No physics runs.
 - **Cruise**: Altitude is stable (5000 m). A distant landmass slowly approaches at a fixed cosmetic speed. Cabin controls are visible but inactive.
-- **Malfunction**: An alarm and a German computer voice announce the emergency and reveal the target island. `distanceToIsland` is set to 3000 m, but the plane does not sink yet.
+- **Malfunction**: An alarm and a German computer voice announce the emergency. The plane does not sink yet and the target island is not shown.
 - **Briefing**: A static screen while real-world instructors explain the rules. Waits for a Controller to start.
-- **Emergency**: The 1 Hz physics loop runs, all controls are live, and the plane begins to sink. The run ends when altitude reaches 0.
+- **Emergency**: Per-frame physics run, all controls are live, and the plane begins to sink. The island is spawned at a random bearing 3000 m away and rendered on the horizon. The run ends when altitude reaches 0.
 - **Finished**: The success screen shows the distance to the island as the primary score.
 
 Any joined Controller can trigger the phase-advancing buttons.
@@ -70,11 +70,17 @@ altitudeLossPerSecond = max(2.0, 15.0 - activeTotal * 1.3) + stormBonus
 
 `stormBonus` is up to +10 m/s, scaled by the ramped thunderstorm intensity.
 
-### Distance to island
+### Navigation and distance to island
 
-- Starts at 3000 m when the malfunction reveals the island.
-- Decreases every tick at a Controller-adjustable approach speed (default 15 m/s).
-- At altitude 0, the remaining distance is the score (0 m = perfect landing).
+The plane flies on a 2D map (north-up coordinates) instead of counting a scalar down.
+
+- When the emergency landing starts, the island is placed at a random bearing 3000 m from the plane. It can be anywhere in the full circle, including behind the plane.
+- The plane moves at a constant ground speed (the Controller-adjustable approach speed, default 15 m/s) along its current heading. Speed is unaffected by turns.
+- Bank angle is the only thing that turns the plane: `heading += bankAngle * turnRate`. The crew must keep the cabin balanced to fly straight; nothing auto-corrects the heading.
+- `distanceToIsland` is the true straight-line distance, so steering away genuinely increases it and a bad path costs distance.
+- At altitude 0, the remaining straight-line distance is the score (0 m = perfect landing). Reaching the island while still high simply means flying over it; the plane must circle back down.
+
+The island is drawn heading-up: centered when it is dead ahead, sliding left or right as the plane turns, and replaced by a chevron on the screen edge once it leaves the field of view. The arrow side follows the island's bearing and flips edges as the bearing wraps past ±180°.
 
 ### Bank angle
 
@@ -83,7 +89,7 @@ windEffect = windDirection * (windStrength / 100) * 15
 bankAngle  = (counterLeft - counterRight) * 4 + windEffect
 ```
 
-The displayed bank angle is interpolated smoothly between the 1 Hz physics ticks.
+The displayed bank angle is interpolated smoothly each frame and drives both the artificial horizon and the navigation turn rate.
 
 ## Weather
 
