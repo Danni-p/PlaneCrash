@@ -566,14 +566,15 @@ class _CockpitScreenState extends State<CockpitScreen>
         // HUD widgets (the original design used fixed pixel sizes).
         final h = constraints.maxHeight.isFinite ? constraints.maxHeight : 600.0;
         final scale = (h / 520.0).clamp(0.65, 1.0);
-        final horizonSize = (260.0 * scale).clamp(170.0, 260.0);
+        final horizonSize = (140.0 * scale).clamp(90.0, 140.0);
 
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
+        return Stack(
           children: [
-            Expanded(
+            Align(
+              alignment: Alignment.centerLeft,
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   NeonDisplay(
@@ -593,24 +594,13 @@ class _CockpitScreenState extends State<CockpitScreen>
                 ],
               ),
             ),
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ArtificialHorizon(
-                  bankAngleDegrees: state.displayBankAngle,
-                  size: horizonSize,
-                ),
-                SizedBox(height: 16 * scale),
-                NeonDisplay(
-                  label: l10n.labelBankAngle,
-                  value: state.displayBankAngle.round().toString(),
-                  unit: l10n.unitDegrees,
-                  color: const Color(0xFFFFC312),
-                  scale: scale,
-                ),
-              ],
+            Align(
+              alignment: Alignment.bottomRight,
+              child: ArtificialHorizon(
+                bankAngleDegrees: state.displayBankAngle,
+                size: horizonSize,
+              ),
             ),
-            const Spacer(),
           ],
         );
       },
