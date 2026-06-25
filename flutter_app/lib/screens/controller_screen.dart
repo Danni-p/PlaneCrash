@@ -1,0 +1,525 @@
+import 'dart:async';
+import 'dart:math';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../l10n/app_localizations.dart';
+import '../models/broadcast_message.dart';
+import '../models/game_phase.dart';
+import '../models/game_state.dart';
+import '../models/weather_inputs.dart';
+import '../models/wind_strength.dart';
+import '../engine/physics_engine.dart';
+import '../services/room_code_generator.dart';
+import '../services/supabase_service.dart';
+import '../utils/labels.dart';
+
+/// The phone controller: joins a room by code and sends partial updates. Cabin
+/// controls (counters, approach speed) activate during the emergency phase;
+/// weather can be pre-set earlier. Any controller can advance the flight phases.
+class ControllerScreen extends StatefulWidget {
+  const ControllerScreen({super.key});
+
+  @override
+  State<ControllerScreen> createState() => _ControllerScreenState();
+}
+
+class _ControllerScreenState extends State<ControllerScreen> {
+  final TextEditingController _codeController = TextEditingController();
+  final String _source = 'ctrl-${Random().nextInt(1 << 32).toRadixString(16)}';
+
+  RoomConnection? _room;
+  String? _roomCode;
+  String? _joinError;
+  bool _sessionEnded = false;
+
+  // Local mirror of the game phase, kept in sync via observed phase actions.
+  GamePhase _phase = GamePhase.waiting;
+  Timer? _briefingTimer;
+
+  int _counterLeft = 0;
+  int _counterRight = 0;
+  WeatherInputs _weather = const WeatherInputs();
+  double _distanceSpeed = PhysicsEngine.defaultDistanceSpeed;
+
+  bool get _controlsActive => _phase == GamePhase.emergency;
+
+  @override
+  void initState() {
+    super.initState();
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+  }
+
+  @override
+  void dispose() {
+    _briefingTimer?.cancel();
+    _codeController.dispose();
+    _room?.disconnect();
+    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    super.dispose();
+  }
+
+  void _join() {
+    final input = _codeController.text;
+    if (!SupabaseService.isConfigured) {
+      setState(() => _joinError = AppLocalizations.of(context)!.cockpitConfigError);
+      return;
+    }
+    if (!RoomCodeGenerator.isValid(input)) {
+      setState(() => _joinError = AppLocalizations.of(context)!.controllerInvalidCode);
+      return;
+    }
+    final code = RoomCodeGenerator.normalize(input);
+    final room = SupabaseService.openRoom(code)
+      ..onPhaseAction((message) => _observePhaseAction(message.action))
+      ..onSessionCancel(_onSessionCancelled);
+    room.connect();
+    setState(() {
+      _room = room;
+      _roomCode = code;
+      _joinError = null;
+      _sessionEnded = false;
+      _resetLocalState();
+    });
+  }
+
+  void _resetLocalState() {
+    _phase = GamePhase.waiting;
+    _counterLeft = 0;
+    _counterRight = 0;
+    _weather = const WeatherInputs();
+    _distanceSpeed = PhysicsEngine.defaultDistanceSpeed;
+    _briefingTimer?.cancel();
+  }
+
+  void _onSessionCancelled() {
+    _briefingTimer?.cancel();
+    _room?.disconnect();
+    setState(() {
+      _room = null;
+      _roomCode = null;
+      _sessionEnded = true;
+      _resetLocalState();
+    });
+  }
+
+  /// Applies a phase transition observed from any controller (including this
+  /// one) so every phone's local phase stays aligned with the cockpit.
+  void _observePhaseAction(PhaseAction action) {
+    setState(() {
+      switch (action) {
+        case PhaseAction.startCruise:
+          if (_phase == GamePhase.waiting) _phase = GamePhase.cruise;
+        case PhaseAction.engineMalfunction:
+          if (_phase == GamePhase.cruise) {
+            _phase = GamePhase.malfunction;
+            _briefingTimer?.cancel();
+            _briefingTimer = Timer(GameState.malfunctionDuration, () {
+              if (mounted && _phase == GamePhase.malfunction) {
+                setState(() => _phase = GamePhase.briefing);
+              }
+            });
+          }
+        case PhaseAction.startEmergency:
+          if (_phase == GamePhase.briefing) _phase = GamePhase.emergency;
+      }
+    });
+  }
+
+  void _sendPhaseAction(PhaseAction action) {
+    HapticFeedback.mediumImpact();
+    _room?.sendPhaseAction(PhaseActionMessage(action: action, source: _source));
+    _observePhaseAction(action);
+  }
+
+  void _changeCounter({required bool left, required int delta}) {
+    HapticFeedback.lightImpact();
+    setState(() {
+      if (left) {
+        _counterLeft = max(0, _counterLeft + delta);
+      } else {
+        _counterRight = max(0, _counterRight + delta);
+      }
+    });
+    _room?.sendCounterUpdate(CounterUpdate(
+      counterLeft: left ? _counterLeft : null,
+      counterRight: left ? null : _counterRight,
+      source: _source,
+    ));
+  }
+
+  void _updateWeather(WeatherInputs weather) {
+    HapticFeedback.lightImpact();
+    setState(() => _weather = weather);
+    _room?.sendWeatherUpdate(WeatherUpdate(weather: weather, source: _source));
+  }
+
+  void _changeDistanceSpeed(double value) {
+    setState(() => _distanceSpeed = value);
+    _room?.sendSettingsUpdate(
+      SettingsUpdate(distanceSpeed: value, source: _source),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(l10n.appTitle),
+        backgroundColor: Colors.black,
+      ),
+      body: SafeArea(
+        child: _room == null ? _buildJoin(l10n) : _buildControls(l10n),
+      ),
+    );
+  }
+
+  Widget _buildJoin(AppLocalizations l10n) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.meeting_room, size: 72, color: Color(0xFF39FF14)),
+            const SizedBox(height: 16),
+            Text(
+              l10n.controllerJoinTitle,
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 24),
+            TextField(
+              controller: _codeController,
+              autocorrect: false,
+              textInputAction: TextInputAction.go,
+              onSubmitted: (_) => _join(),
+              decoration: InputDecoration(
+                labelText: l10n.controllerRoomCodeHint,
+                border: const OutlineInputBorder(),
+                errorText: _joinError,
+              ),
+            ),
+            if (_sessionEnded) ...[
+              const SizedBox(height: 12),
+              Text(
+                l10n.controllerSessionEnded,
+                style: const TextStyle(color: Colors.amberAccent),
+                textAlign: TextAlign.center,
+              ),
+            ],
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _join,
+                icon: const Icon(Icons.login),
+                label: Text(l10n.controllerJoinButton),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildControls(AppLocalizations l10n) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text(
+          l10n.controllerConnected(_roomCode ?? ''),
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: const Color(0xFF39FF14),
+                fontWeight: FontWeight.bold,
+              ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 16),
+        _buildPhaseSection(l10n),
+        const SizedBox(height: 24),
+        if (!_controlsActive)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text(
+              l10n.controllerControlsLockedHint,
+              style: const TextStyle(color: Colors.amberAccent),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        _buildCounters(l10n),
+        const SizedBox(height: 24),
+        _buildWeather(l10n),
+        const SizedBox(height: 24),
+        _buildDistanceSpeed(l10n),
+      ],
+    );
+  }
+
+  Widget _buildPhaseSection(AppLocalizations l10n) {
+    return _Section(
+      title: l10n.controllerPhaseSection,
+      child: Column(
+        children: [
+          _PhaseButton(
+            label: l10n.phaseButtonStartFlight,
+            icon: Icons.flight_takeoff,
+            enabled: _phase == GamePhase.waiting,
+            onPressed: () => _sendPhaseAction(PhaseAction.startCruise),
+          ),
+          const SizedBox(height: 8),
+          _PhaseButton(
+            label: l10n.phaseButtonEngineFailure,
+            icon: Icons.warning_amber_rounded,
+            color: Colors.redAccent,
+            enabled: _phase == GamePhase.cruise,
+            onPressed: () => _sendPhaseAction(PhaseAction.engineMalfunction),
+          ),
+          const SizedBox(height: 8),
+          _PhaseButton(
+            label: l10n.phaseButtonStartEmergency,
+            icon: Icons.flight_land,
+            color: Colors.orangeAccent,
+            enabled: _phase == GamePhase.briefing,
+            onPressed: () => _sendPhaseAction(PhaseAction.startEmergency),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCounters(AppLocalizations l10n) {
+    return Row(
+      children: [
+        Expanded(
+          child: _CounterCard(
+            label: l10n.controllerLeftCounter,
+            value: _counterLeft,
+            enabled: _controlsActive,
+            onIncrement: () => _changeCounter(left: true, delta: 1),
+            onDecrement: () => _changeCounter(left: true, delta: -1),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _CounterCard(
+            label: l10n.controllerRightCounter,
+            value: _counterRight,
+            enabled: _controlsActive,
+            onIncrement: () => _changeCounter(left: false, delta: 1),
+            onDecrement: () => _changeCounter(left: false, delta: -1),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWeather(AppLocalizations l10n) {
+    return _Section(
+      title: l10n.controllerWeatherSection,
+      child: Column(
+        children: [
+          SwitchListTile(
+            title: Text(l10n.weatherThunderstorm),
+            value: _weather.thunderstorm,
+            onChanged: (v) => _updateWeather(_weather.copyWith(thunderstorm: v)),
+          ),
+          SwitchListTile(
+            title: Text(l10n.weatherWindLeft),
+            value: _weather.windLeft,
+            onChanged: (v) => _updateWeather(_weather.copyWith(windLeft: v)),
+          ),
+          SwitchListTile(
+            title: Text(l10n.weatherWindRight),
+            value: _weather.windRight,
+            onChanged: (v) => _updateWeather(_weather.copyWith(windRight: v)),
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(l10n.windStrengthLabel,
+                style: Theme.of(context).textTheme.labelLarge),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: WindStrength.values.map((strength) {
+              return ChoiceChip(
+                label: Text(Labels.windStrength(l10n, strength)),
+                selected: _weather.windStrength == strength,
+                onSelected: (_) =>
+                    _updateWeather(_weather.copyWith(windStrength: strength)),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDistanceSpeed(AppLocalizations l10n) {
+    return _Section(
+      title: l10n.controllerDistanceSpeed,
+      child: Column(
+        children: [
+          Text(
+            '${_distanceSpeed.round()} ${l10n.unitMeters}/s',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          Slider(
+            value: _distanceSpeed,
+            min: 5,
+            max: 30,
+            divisions: 25,
+            label: '${_distanceSpeed.round()}',
+            onChanged: _controlsActive ? _changeDistanceSpeed : null,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Section extends StatelessWidget {
+  const _Section({required this.title, required this.child});
+
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title.toUpperCase(),
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    letterSpacing: 1.5,
+                    color: Colors.white70,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PhaseButton extends StatelessWidget {
+  const _PhaseButton({
+    required this.label,
+    required this.icon,
+    required this.enabled,
+    required this.onPressed,
+    this.color,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onPressed;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        onPressed: enabled ? onPressed : null,
+        icon: Icon(icon),
+        label: Text(label),
+        style: FilledButton.styleFrom(
+          backgroundColor: color,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+        ),
+      ),
+    );
+  }
+}
+
+class _CounterCard extends StatelessWidget {
+  const _CounterCard({
+    required this.label,
+    required this.value,
+    required this.enabled,
+    required this.onIncrement,
+    required this.onDecrement,
+  });
+
+  final String label;
+  final int value;
+  final bool enabled;
+  final VoidCallback onIncrement;
+  final VoidCallback onDecrement;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            Text(label, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Text(
+              '$value',
+              style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF39FF14),
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _RoundButton(
+                  icon: Icons.remove,
+                  onPressed: enabled ? onDecrement : null,
+                ),
+                _RoundButton(
+                  icon: Icons.add,
+                  onPressed: enabled ? onIncrement : null,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RoundButton extends StatelessWidget {
+  const _RoundButton({required this.icon, required this.onPressed});
+
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 64,
+      height: 64,
+      child: FilledButton(
+        onPressed: onPressed,
+        style: FilledButton.styleFrom(
+          shape: const CircleBorder(),
+          padding: EdgeInsets.zero,
+        ),
+        child: Icon(icon, size: 28),
+      ),
+    );
+  }
+}

@@ -1,0 +1,2 @@
+# Audio assets (engine hum, alarms, thunder). Drop .mp3/.wav files here.
+# Files referenced by AudioService are optional; playback is skipped if missing.
