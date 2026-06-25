@@ -160,3 +160,14 @@ switched later without code changes.
 - User authentication
 - Database persistence and leaderboards
 - iOS-specific polish beyond basic support
+
+
+
+
+curl -v \
+  -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNmZGZ6b2NzeW5mdnZqc3lvd294Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzMDY3MTQsImV4cCI6MjA5Nzg4MjcxNH0.y75gQDIsPCPYDpuZGMa89ZnD3fVl2XDFcu4tX8Y-HtA" \
+  -H "Content-Type: application/json" \
+  --data-raw '{"action":"startCruise","source":"curl-test"}' \
+  "https://cfdfzocsynfvvjsyowox.supabase.co/realtime/v1/api/broadcast/room-rakete-strand/events/phase_action"
+
+

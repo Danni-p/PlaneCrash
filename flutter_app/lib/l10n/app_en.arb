@@ -8,6 +8,11 @@
   "cockpitWaitingHint": "Waiting for controllers to join…",
   "cockpitEndSession": "End session",
   "cockpitConnecting": "Connecting…",
+  "cockpitRealtimeReady": "Realtime connected — ready for controllers",
+  "cockpitRealtimeFailed": "Realtime connection failed: {error}",
+  "@cockpitRealtimeFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
   "cockpitConfigError": "Supabase is not configured. Add SUPABASE_URL and SUPABASE_ANON_KEY to .env.",
   "labelAltitude": "Altitude",
   "labelDistance": "Distance to island",
@@ -24,10 +29,13 @@
   "controllerRoomCodeHint": "Room code (e.g. eagle-island)",
   "controllerJoinButton": "Join room",
   "controllerInvalidCode": "Enter a valid room code.",
+  "controllerConnecting": "Connecting to room…",
   "controllerConnected": "Connected to {code}",
   "@controllerConnected": {
     "placeholders": { "code": { "type": "String" } }
   },
+  "controllerSubscribeFailed": "Realtime connection failed. Check network and Supabase settings.",
+  "controllerSendFailed": "Send failed. Please try again.",
   "controllerSessionEnded": "The cockpit ended the session. Re-enter the room code to reconnect.",
   "controllerLeftCounter": "Left side",
   "controllerRightCounter": "Right side",

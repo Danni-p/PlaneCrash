@@ -36,6 +36,9 @@ class _CockpitScreenState extends State<CockpitScreen>
   RoomConnection? _room;
   AppLocalizations? _l10n;
 
+  bool _realtimeReady = false;
+  String? _realtimeError;
+
   Duration _lastTick = Duration.zero;
   GamePhase _lastPhase = GamePhase.waiting;
   bool _navigated = false;
@@ -65,14 +68,22 @@ class _CockpitScreenState extends State<CockpitScreen>
     _l10n = AppLocalizations.of(context);
   }
 
-  void _openRoom() {
+  Future<void> _openRoom() async {
     final room = SupabaseService.openRoom(_roomCode)
       ..onCounterUpdate(_gameState.applyCounterUpdate)
       ..onWeatherUpdate(_gameState.applyWeatherUpdate)
       ..onSettingsUpdate(_gameState.applySettingsUpdate)
-      ..onPhaseAction((message) => _gameState.applyPhaseAction(message.action));
-    room.connect();
-    _room = room;
+      ..onPhaseAction((message) {
+        debugPrint('Cockpit received phase action: ${message.action}');
+        _gameState.applyPhaseAction(message.action);
+      });
+    final ok = await room.connect();
+    if (!mounted) return;
+    setState(() {
+      _room = room;
+      _realtimeReady = ok;
+      _realtimeError = ok ? null : (room.subscribeError ?? 'unknown');
+    });
   }
 
   void _onTick(Duration elapsed) {
@@ -150,8 +161,11 @@ class _CockpitScreenState extends State<CockpitScreen>
 
   Future<void> _endSession() async {
     await _room?.sendSessionCancel();
+    await _room?.disconnect();
     _gameState.resetToWaiting();
     _audio.stopAll();
+    if (!SupabaseService.isConfigured) return;
+    await _openRoom();
   }
 
   @override
@@ -300,8 +314,51 @@ class _CockpitScreenState extends State<CockpitScreen>
             l10n.cockpitWaitingHint,
             style: const TextStyle(color: Colors.white70, fontSize: 18),
           ),
+          const SizedBox(height: 16),
+          if (SupabaseService.isConfigured) _buildRealtimeStatus(l10n),
         ],
       ),
+    );
+  }
+
+  Widget _buildRealtimeStatus(AppLocalizations l10n) {
+    if (!_realtimeReady && _realtimeError == null) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            l10n.cockpitConnecting,
+            style: const TextStyle(color: Colors.white54),
+          ),
+        ],
+      );
+    }
+    if (_realtimeReady) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.wifi, color: Color(0xFF39FF14), size: 20),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              l10n.cockpitRealtimeReady,
+              style: const TextStyle(color: Color(0xFF39FF14), fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
+      );
+    }
+    return Text(
+      l10n.cockpitRealtimeFailed(_realtimeError ?? '?'),
+      style: const TextStyle(color: Colors.redAccent, fontSize: 14),
+      textAlign: TextAlign.center,
     );
   }
 
@@ -410,44 +467,60 @@ class _CockpitScreenState extends State<CockpitScreen>
   }
 
   Widget _buildEmergencyHud(GameState state, AppLocalizations l10n) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Expanded(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              NeonDisplay(
-                label: l10n.labelAltitude,
-                value: state.altitude.round().toString(),
-                unit: l10n.unitMeters,
-              ),
-              const SizedBox(height: 28),
-              NeonDisplay(
-                label: l10n.labelDistance,
-                value: state.distanceToIsland.round().toString(),
-                unit: l10n.unitMeters,
-                color: const Color(0xFF18DCFF),
-              ),
-            ],
-          ),
-        ),
-        Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Avoid RenderFlex overflows on smaller landscape heights by scaling the
+        // HUD widgets (the original design used fixed pixel sizes).
+        final h = constraints.maxHeight.isFinite ? constraints.maxHeight : 600.0;
+        final scale = (h / 520.0).clamp(0.65, 1.0);
+        final horizonSize = (260.0 * scale).clamp(170.0, 260.0);
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            ArtificialHorizon(bankAngleDegrees: state.displayBankAngle, size: 260),
-            const SizedBox(height: 16),
-            NeonDisplay(
-              label: l10n.labelBankAngle,
-              value: state.displayBankAngle.round().toString(),
-              unit: l10n.unitDegrees,
-              color: const Color(0xFFFFC312),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  NeonDisplay(
+                    label: l10n.labelAltitude,
+                    value: state.altitude.round().toString(),
+                    unit: l10n.unitMeters,
+                    scale: scale,
+                  ),
+                  SizedBox(height: 28 * scale),
+                  NeonDisplay(
+                    label: l10n.labelDistance,
+                    value: state.distanceToIsland.round().toString(),
+                    unit: l10n.unitMeters,
+                    color: const Color(0xFF18DCFF),
+                    scale: scale,
+                  ),
+                ],
+              ),
             ),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ArtificialHorizon(
+                  bankAngleDegrees: state.displayBankAngle,
+                  size: horizonSize,
+                ),
+                SizedBox(height: 16 * scale),
+                NeonDisplay(
+                  label: l10n.labelBankAngle,
+                  value: state.displayBankAngle.round().toString(),
+                  unit: l10n.unitDegrees,
+                  color: const Color(0xFFFFC312),
+                  scale: scale,
+                ),
+              ],
+            ),
+            const Spacer(),
           ],
-        ),
-        const Spacer(),
-      ],
+        );
+      },
     );
   }
 }

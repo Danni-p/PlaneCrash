@@ -8,6 +8,11 @@
   "cockpitWaitingHint": "Warte auf Controller …",
   "cockpitEndSession": "Sitzung beenden",
   "cockpitConnecting": "Verbinde …",
+  "cockpitRealtimeReady": "Realtime verbunden — bereit für Controller",
+  "cockpitRealtimeFailed": "Realtime-Verbindung fehlgeschlagen: {error}",
+  "@cockpitRealtimeFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
   "cockpitConfigError": "Supabase ist nicht konfiguriert. Trage SUPABASE_URL und SUPABASE_ANON_KEY in .env ein.",
   "labelAltitude": "Höhe",
   "labelDistance": "Distanz zur Insel",
@@ -24,10 +29,13 @@
   "controllerRoomCodeHint": "Raumcode (z. B. adler-insel)",
   "controllerJoinButton": "Raum beitreten",
   "controllerInvalidCode": "Gib einen gültigen Raumcode ein.",
+  "controllerConnecting": "Verbinde mit Raum …",
   "controllerConnected": "Verbunden mit {code}",
   "@controllerConnected": {
     "placeholders": { "code": { "type": "String" } }
   },
+  "controllerSubscribeFailed": "Realtime-Verbindung fehlgeschlagen. Prüfe Internet und Supabase-Einstellungen.",
+  "controllerSendFailed": "Senden fehlgeschlagen. Bitte erneut versuchen.",
   "controllerSessionEnded": "Das Cockpit hat die Sitzung beendet. Gib den Raumcode erneut ein, um dich neu zu verbinden.",
   "controllerLeftCounter": "Linke Seite",
   "controllerRightCounter": "Rechte Seite",

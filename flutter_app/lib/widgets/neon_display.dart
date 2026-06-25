@@ -9,15 +9,18 @@ class NeonDisplay extends StatelessWidget {
     required this.value,
     required this.unit,
     this.color = const Color(0xFF39FF14),
+    this.scale = 1.0,
   });
 
   final String label;
   final String value;
   final String unit;
   final Color color;
+  final double scale;
 
   @override
   Widget build(BuildContext context) {
+    final s = scale.clamp(0.6, 1.0);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -26,12 +29,12 @@ class NeonDisplay extends StatelessWidget {
           label.toUpperCase(),
           style: TextStyle(
             color: color.withValues(alpha: 0.7),
-            fontSize: 14,
-            letterSpacing: 2,
+            fontSize: 14 * s,
+            letterSpacing: 2 * s,
             fontWeight: FontWeight.w600,
           ),
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: 4 * s),
         Row(
           textBaseline: TextBaseline.alphabetic,
           crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -40,7 +43,7 @@ class NeonDisplay extends StatelessWidget {
               value,
               style: TextStyle(
                 color: color,
-                fontSize: 52,
+                fontSize: 52 * s,
                 fontWeight: FontWeight.bold,
                 fontFeatures: const [FontFeature.tabularFigures()],
                 shadows: [
@@ -49,12 +52,12 @@ class NeonDisplay extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 6),
+            SizedBox(width: 6 * s),
             Text(
               unit,
               style: TextStyle(
                 color: color.withValues(alpha: 0.8),
-                fontSize: 20,
+                fontSize: 20 * s,
                 fontWeight: FontWeight.w500,
               ),
             ),

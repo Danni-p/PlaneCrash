@@ -27,12 +27,18 @@ class ControllerScreen extends StatefulWidget {
 
 class _ControllerScreenState extends State<ControllerScreen> {
   final TextEditingController _codeController = TextEditingController();
-  final String _source = 'ctrl-${Random().nextInt(1 << 32).toRadixString(16)}';
+  // Web note: JS bit-shifts are 32-bit; (1 << 32) becomes 0, which would crash
+  // Random().nextInt(max). Use a time+random suffix instead.
+  final String _source =
+      'ctrl-${DateTime.now().microsecondsSinceEpoch.toRadixString(16)}-'
+      '${Random().nextInt(0x7fffffff).toRadixString(16)}';
 
   RoomConnection? _room;
   String? _roomCode;
   String? _joinError;
   bool _sessionEnded = false;
+  bool _isJoining = false;
+  bool _isSubscribed = false;
 
   // Local mirror of the game phase, kept in sync via observed phase actions.
   GamePhase _phase = GamePhase.waiting;
@@ -63,26 +69,47 @@ class _ControllerScreenState extends State<ControllerScreen> {
     super.dispose();
   }
 
-  void _join() {
+  Future<void> _join() async {
     final input = _codeController.text;
+    final l10n = AppLocalizations.of(context)!;
     if (!SupabaseService.isConfigured) {
-      setState(() => _joinError = AppLocalizations.of(context)!.cockpitConfigError);
+      setState(() => _joinError = l10n.cockpitConfigError);
       return;
     }
     if (!RoomCodeGenerator.isValid(input)) {
-      setState(() => _joinError = AppLocalizations.of(context)!.controllerInvalidCode);
+      setState(() => _joinError = l10n.controllerInvalidCode);
       return;
     }
     final code = RoomCodeGenerator.normalize(input);
+    setState(() {
+      _isJoining = true;
+      _joinError = null;
+    });
+
     final room = SupabaseService.openRoom(code)
       ..onPhaseAction((message) => _observePhaseAction(message.action))
       ..onSessionCancel(_onSessionCancelled);
-    room.connect();
+
+    final ok = await room.connect();
+    if (!mounted) return;
+
+    if (!ok) {
+      await room.disconnect();
+      setState(() {
+        _isJoining = false;
+        _isSubscribed = false;
+        _joinError = l10n.controllerSubscribeFailed;
+      });
+      return;
+    }
+
     setState(() {
       _room = room;
       _roomCode = code;
       _joinError = null;
       _sessionEnded = false;
+      _isJoining = false;
+      _isSubscribed = true;
       _resetLocalState();
     });
   }
@@ -103,6 +130,7 @@ class _ControllerScreenState extends State<ControllerScreen> {
       _room = null;
       _roomCode = null;
       _sessionEnded = true;
+      _isSubscribed = false;
       _resetLocalState();
     });
   }
@@ -130,10 +158,20 @@ class _ControllerScreenState extends State<ControllerScreen> {
     });
   }
 
-  void _sendPhaseAction(PhaseAction action) {
+  Future<void> _sendPhaseAction(PhaseAction action) async {
+    if (!_isSubscribed || _room == null) return;
     HapticFeedback.mediumImpact();
-    _room?.sendPhaseAction(PhaseActionMessage(action: action, source: _source));
-    _observePhaseAction(action);
+    final result = await _room!.sendPhaseAction(
+      PhaseActionMessage(action: action, source: _source),
+    );
+    if (!mounted) return;
+    if (result == BroadcastSendResult.ok) {
+      _observePhaseAction(action);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context)!.controllerSendFailed)),
+      );
+    }
   }
 
   void _changeCounter({required bool left, required int delta}) {
@@ -174,7 +212,20 @@ class _ControllerScreenState extends State<ControllerScreen> {
         backgroundColor: Colors.black,
       ),
       body: SafeArea(
-        child: _room == null ? _buildJoin(l10n) : _buildControls(l10n),
+        child: _isJoining
+            ? Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 16),
+                    Text(l10n.controllerConnecting),
+                  ],
+                ),
+              )
+            : _room == null
+                ? _buildJoin(l10n)
+                : _buildControls(l10n),
       ),
     );
   }
@@ -216,7 +267,7 @@ class _ControllerScreenState extends State<ControllerScreen> {
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                onPressed: _join,
+                onPressed: _isJoining ? null : _join,
                 icon: const Icon(Icons.login),
                 label: Text(l10n.controllerJoinButton),
                 style: FilledButton.styleFrom(
@@ -237,7 +288,9 @@ class _ControllerScreenState extends State<ControllerScreen> {
         Text(
           l10n.controllerConnected(_roomCode ?? ''),
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: const Color(0xFF39FF14),
+                color: _isSubscribed
+                    ? const Color(0xFF39FF14)
+                    : Colors.amberAccent,
                 fontWeight: FontWeight.bold,
               ),
           textAlign: TextAlign.center,
@@ -271,7 +324,7 @@ class _ControllerScreenState extends State<ControllerScreen> {
           _PhaseButton(
             label: l10n.phaseButtonStartFlight,
             icon: Icons.flight_takeoff,
-            enabled: _phase == GamePhase.waiting,
+            enabled: _isSubscribed && _phase == GamePhase.waiting,
             onPressed: () => _sendPhaseAction(PhaseAction.startCruise),
           ),
           const SizedBox(height: 8),
@@ -279,7 +332,7 @@ class _ControllerScreenState extends State<ControllerScreen> {
             label: l10n.phaseButtonEngineFailure,
             icon: Icons.warning_amber_rounded,
             color: Colors.redAccent,
-            enabled: _phase == GamePhase.cruise,
+            enabled: _isSubscribed && _phase == GamePhase.cruise,
             onPressed: () => _sendPhaseAction(PhaseAction.engineMalfunction),
           ),
           const SizedBox(height: 8),
@@ -287,7 +340,7 @@ class _ControllerScreenState extends State<ControllerScreen> {
             label: l10n.phaseButtonStartEmergency,
             icon: Icons.flight_land,
             color: Colors.orangeAccent,
-            enabled: _phase == GamePhase.briefing,
+            enabled: _isSubscribed && _phase == GamePhase.briefing,
             onPressed: () => _sendPhaseAction(PhaseAction.startEmergency),
           ),
         ],
