@@ -178,6 +178,62 @@ class RoomConnection {
     );
   }
 
+  void onControllerClaimRequest(
+    void Function(ControllerClaimRequest request) callback,
+  ) {
+    _channel.onBroadcast(
+      event: BroadcastEvents.controllerClaimRequest,
+      callback: (raw) => _dispatch(
+        event: BroadcastEvents.controllerClaimRequest,
+        raw: raw,
+        parse: ControllerClaimRequest.fromJson,
+        deliver: callback,
+      ),
+    );
+  }
+
+  void onControllerClaimResponse(
+    void Function(ControllerClaimResponse response) callback,
+  ) {
+    _channel.onBroadcast(
+      event: BroadcastEvents.controllerClaimResponse,
+      callback: (raw) => _dispatch(
+        event: BroadcastEvents.controllerClaimResponse,
+        raw: raw,
+        parse: ControllerClaimResponse.fromJson,
+        deliver: callback,
+      ),
+    );
+  }
+
+  void onControllerHeartbeat(
+    void Function(ControllerHeartbeat heartbeat) callback,
+  ) {
+    _channel.onBroadcast(
+      event: BroadcastEvents.controllerHeartbeat,
+      callback: (raw) => _dispatch(
+        event: BroadcastEvents.controllerHeartbeat,
+        raw: raw,
+        parse: ControllerHeartbeat.fromJson,
+        deliver: callback,
+      ),
+    );
+  }
+
+  void onControllerReleased(
+    void Function(ControllerReleased released) callback,
+  ) {
+    _channel.onBroadcast(
+      event: BroadcastEvents.controllerReleased,
+      callback: (raw) => _dispatch(
+        event: BroadcastEvents.controllerReleased,
+        raw: raw,
+        parse: ControllerReleased.fromJson,
+        deliver: callback,
+      ),
+    );
+  }
+
   void _dispatch<T>({
     required String event,
     required Map<String, dynamic> raw,
@@ -204,6 +260,26 @@ class RoomConnection {
 
   Future<BroadcastSendResult> sendSessionCancel() =>
       _send(BroadcastEvents.sessionCancel, const {});
+
+  Future<BroadcastSendResult> sendControllerClaimRequest(
+    ControllerClaimRequest request,
+  ) =>
+      _send(BroadcastEvents.controllerClaimRequest, request.toJson());
+
+  Future<BroadcastSendResult> sendControllerClaimResponse(
+    ControllerClaimResponse response,
+  ) =>
+      _send(BroadcastEvents.controllerClaimResponse, response.toJson());
+
+  Future<BroadcastSendResult> sendControllerHeartbeat(
+    ControllerHeartbeat heartbeat,
+  ) =>
+      _send(BroadcastEvents.controllerHeartbeat, heartbeat.toJson());
+
+  Future<BroadcastSendResult> sendControllerReleased(
+    ControllerReleased released,
+  ) =>
+      _send(BroadcastEvents.controllerReleased, released.toJson());
 
   Future<BroadcastSendResult> _send(
     String event,
@@ -242,6 +318,12 @@ class RoomConnection {
         map.containsKey('counterRight') ||
         map.containsKey('thunderstorm') ||
         map.containsKey('windLeft') ||
-        map.containsKey('distanceSpeed');
+        map.containsKey('distanceSpeed') ||
+        map.containsKey('requestedAtMs') ||
+        map.containsKey('targetSource') ||
+        map.containsKey('accepted') ||
+        map.containsKey('activeSource') ||
+        map.containsKey('tMs') ||
+        map.containsKey('reason');
   }
 }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import '../engine/physics_engine.dart';
 import '../l10n/app_localizations.dart';
+import '../models/broadcast_message.dart';
 import '../models/game_phase.dart';
 import '../models/game_state.dart';
 import '../services/audio_service.dart';
@@ -45,6 +47,13 @@ class _CockpitScreenState extends State<CockpitScreen>
   double _lastThunderAt = 0.0;
   double _flicker = 0.0;
 
+  static const Duration _controllerHeartbeatInterval = Duration(seconds: 3);
+  static const Duration _controllerHeartbeatTimeout = Duration(seconds: 12);
+
+  String? _activeControllerSource;
+  DateTime? _activeControllerLastHeartbeat;
+  Timer? _controllerWatchdog;
+
   @override
   void initState() {
     super.initState();
@@ -69,14 +78,28 @@ class _CockpitScreenState extends State<CockpitScreen>
   }
 
   Future<void> _openRoom() async {
-    final room = SupabaseService.openRoom(_roomCode)
-      ..onCounterUpdate(_gameState.applyCounterUpdate)
-      ..onWeatherUpdate(_gameState.applyWeatherUpdate)
-      ..onSettingsUpdate(_gameState.applySettingsUpdate)
-      ..onPhaseAction((message) {
-        debugPrint('Cockpit received phase action: ${message.action}');
-        _gameState.applyPhaseAction(message.action);
-      });
+    final room = SupabaseService.openRoom(_roomCode);
+    room.onControllerClaimRequest(
+      (request) => _onControllerClaimRequest(room, request),
+    );
+    room.onControllerHeartbeat(_onControllerHeartbeat);
+    room.onCounterUpdate((update) {
+      if (!_isFromActiveController(update.source)) return;
+      _gameState.applyCounterUpdate(update);
+    });
+    room.onWeatherUpdate((update) {
+      if (!_isFromActiveController(update.source)) return;
+      _gameState.applyWeatherUpdate(update);
+    });
+    room.onSettingsUpdate((update) {
+      if (!_isFromActiveController(update.source)) return;
+      _gameState.applySettingsUpdate(update);
+    });
+    room.onPhaseAction((message) {
+      if (!_isFromActiveController(message.source)) return;
+      debugPrint('Cockpit received phase action: ${message.action}');
+      _gameState.applyPhaseAction(message.action);
+    });
     final ok = await room.connect();
     if (!mounted) return;
     setState(() {
@@ -84,6 +107,75 @@ class _CockpitScreenState extends State<CockpitScreen>
       _realtimeReady = ok;
       _realtimeError = ok ? null : (room.subscribeError ?? 'unknown');
     });
+
+    if (ok) {
+      _controllerWatchdog ??= Timer.periodic(
+        _controllerHeartbeatInterval,
+        (_) => _checkControllerTimeout(),
+      );
+    }
+  }
+
+  bool _isFromActiveController(String source) {
+    final active = _activeControllerSource;
+    return active != null && source == active;
+  }
+
+  void _onControllerClaimRequest(
+    RoomConnection room,
+    ControllerClaimRequest request,
+  ) {
+    _checkControllerTimeout();
+
+    final active = _activeControllerSource;
+    if (active == null) {
+      _activeControllerSource = request.source;
+      _activeControllerLastHeartbeat = DateTime.now();
+      debugPrint('Cockpit accepted controller claim: source=${request.source}');
+      room.sendControllerClaimResponse(
+        ControllerClaimResponse(
+          targetSource: request.source,
+          accepted: true,
+          activeSource: request.source,
+          expiresInMs: _controllerHeartbeatTimeout.inMilliseconds,
+        ),
+      );
+      return;
+    }
+
+    debugPrint(
+      'Cockpit rejected controller claim: source=${request.source} active=$active',
+    );
+    room.sendControllerClaimResponse(
+      ControllerClaimResponse(
+        targetSource: request.source,
+        accepted: false,
+        activeSource: active,
+        expiresInMs: _controllerHeartbeatTimeout.inMilliseconds,
+      ),
+    );
+  }
+
+  void _onControllerHeartbeat(ControllerHeartbeat heartbeat) {
+    if (!_isFromActiveController(heartbeat.source)) return;
+    _activeControllerLastHeartbeat = DateTime.now();
+  }
+
+  void _checkControllerTimeout() {
+    final active = _activeControllerSource;
+    if (active == null) return;
+    final last = _activeControllerLastHeartbeat;
+    if (last == null) return;
+
+    final now = DateTime.now();
+    if (now.difference(last) <= _controllerHeartbeatTimeout) return;
+
+    debugPrint('Cockpit released controller claim due to timeout: $active');
+    _activeControllerSource = null;
+    _activeControllerLastHeartbeat = null;
+    _room?.sendControllerReleased(
+      ControllerReleased(activeSource: active, reason: 'timeout'),
+    );
   }
 
   void _onTick(Duration elapsed) {
@@ -174,6 +266,7 @@ class _CockpitScreenState extends State<CockpitScreen>
     _gameState.removeListener(_onStateChanged);
     _gameState.dispose();
     _room?.disconnect();
+    _controllerWatchdog?.cancel();
     _audio.dispose();
     SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     super.dispose();

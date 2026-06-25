@@ -39,6 +39,9 @@ class _ControllerScreenState extends State<ControllerScreen> {
   bool _sessionEnded = false;
   bool _isJoining = false;
   bool _isSubscribed = false;
+  bool _isActiveController = false;
+  bool _isClaimPending = false;
+  Timer? _heartbeatTimer;
 
   // Local mirror of the game phase, kept in sync via observed phase actions.
   GamePhase _phase = GamePhase.waiting;
@@ -50,6 +53,7 @@ class _ControllerScreenState extends State<ControllerScreen> {
   double _distanceSpeed = PhysicsEngine.defaultDistanceSpeed;
 
   bool get _controlsActive => _phase == GamePhase.emergency;
+  bool get _canSendControlUpdates => _isActiveController && _controlsActive;
 
   @override
   void initState() {
@@ -63,6 +67,7 @@ class _ControllerScreenState extends State<ControllerScreen> {
   @override
   void dispose() {
     _briefingTimer?.cancel();
+    _heartbeatTimer?.cancel();
     _codeController.dispose();
     _room?.disconnect();
     SystemChrome.setPreferredOrientations(DeviceOrientation.values);
@@ -88,6 +93,7 @@ class _ControllerScreenState extends State<ControllerScreen> {
 
     final room = SupabaseService.openRoom(code)
       ..onPhaseAction((message) => _observePhaseAction(message.action))
+      ..onControllerClaimResponse(_onControllerClaimResponse)
       ..onSessionCancel(_onSessionCancelled);
 
     final ok = await room.connect();
@@ -110,7 +116,62 @@ class _ControllerScreenState extends State<ControllerScreen> {
       _sessionEnded = false;
       _isJoining = false;
       _isSubscribed = true;
+      _isActiveController = false;
+      _isClaimPending = true;
       _resetLocalState();
+    });
+
+    _requestControllerClaim();
+  }
+
+  void _requestControllerClaim() {
+    final room = _room;
+    if (!_isSubscribed || room == null) return;
+    room.sendControllerClaimRequest(
+      ControllerClaimRequest(
+        source: _source,
+        requestedAtMs: DateTime.now().millisecondsSinceEpoch,
+      ),
+    );
+  }
+
+  void _onControllerClaimResponse(ControllerClaimResponse response) async {
+    if (response.targetSource != _source) return;
+    if (!mounted) return;
+
+    if (!response.accepted) {
+      final l10n = AppLocalizations.of(context)!;
+      final room = _room;
+      _heartbeatTimer?.cancel();
+      await room?.disconnect();
+      if (!mounted) return;
+      setState(() {
+        _room = null;
+        _roomCode = null;
+        _isSubscribed = false;
+        _isActiveController = false;
+        _isClaimPending = false;
+        _joinError = l10n.controllerAlreadyActive;
+        _resetLocalState();
+      });
+      return;
+    }
+
+    setState(() {
+      _isActiveController = true;
+      _isClaimPending = false;
+    });
+
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      final room = _room;
+      if (!_isSubscribed || !_isActiveController || room == null) return;
+      room.sendControllerHeartbeat(
+        ControllerHeartbeat(
+          source: _source,
+          tMs: DateTime.now().millisecondsSinceEpoch,
+        ),
+      );
     });
   }
 
@@ -125,12 +186,15 @@ class _ControllerScreenState extends State<ControllerScreen> {
 
   void _onSessionCancelled() {
     _briefingTimer?.cancel();
+    _heartbeatTimer?.cancel();
     _room?.disconnect();
     setState(() {
       _room = null;
       _roomCode = null;
       _sessionEnded = true;
       _isSubscribed = false;
+      _isActiveController = false;
+      _isClaimPending = false;
       _resetLocalState();
     });
   }
@@ -138,6 +202,7 @@ class _ControllerScreenState extends State<ControllerScreen> {
   /// Applies a phase transition observed from any controller (including this
   /// one) so every phone's local phase stays aligned with the cockpit.
   void _observePhaseAction(PhaseAction action) {
+    final before = _phase;
     setState(() {
       switch (action) {
         case PhaseAction.startCruise:
@@ -156,10 +221,31 @@ class _ControllerScreenState extends State<ControllerScreen> {
           if (_phase == GamePhase.briefing) _phase = GamePhase.emergency;
       }
     });
+
+    if (before != GamePhase.emergency && _phase == GamePhase.emergency) {
+      _flushAllControls();
+    }
+  }
+
+  void _flushAllControls() {
+    if (!_isSubscribed || !_isActiveController || _room == null) return;
+    _room!.sendCounterUpdate(
+      CounterUpdate(
+        counterLeft: _counterLeft,
+        counterRight: _counterRight,
+        source: _source,
+      ),
+    );
+    _room!.sendWeatherUpdate(
+      WeatherUpdate(weather: _weather, source: _source),
+    );
+    _room!.sendSettingsUpdate(
+      SettingsUpdate(distanceSpeed: _distanceSpeed, source: _source),
+    );
   }
 
   Future<void> _sendPhaseAction(PhaseAction action) async {
-    if (!_isSubscribed || _room == null) return;
+    if (!_isSubscribed || !_isActiveController || _room == null) return;
     HapticFeedback.mediumImpact();
     final result = await _room!.sendPhaseAction(
       PhaseActionMessage(action: action, source: _source),
@@ -183,24 +269,27 @@ class _ControllerScreenState extends State<ControllerScreen> {
         _counterRight = max(0, _counterRight + delta);
       }
     });
-    _room?.sendCounterUpdate(CounterUpdate(
-      counterLeft: left ? _counterLeft : null,
-      counterRight: left ? null : _counterRight,
-      source: _source,
-    ));
+    if (!_canSendControlUpdates) return;
+    _room?.sendCounterUpdate(
+      CounterUpdate(
+        counterLeft: left ? _counterLeft : null,
+        counterRight: left ? null : _counterRight,
+        source: _source,
+      ),
+    );
   }
 
   void _updateWeather(WeatherInputs weather) {
     HapticFeedback.lightImpact();
     setState(() => _weather = weather);
+    if (!_canSendControlUpdates) return;
     _room?.sendWeatherUpdate(WeatherUpdate(weather: weather, source: _source));
   }
 
   void _changeDistanceSpeed(double value) {
     setState(() => _distanceSpeed = value);
-    _room?.sendSettingsUpdate(
-      SettingsUpdate(distanceSpeed: value, source: _source),
-    );
+    if (!_canSendControlUpdates) return;
+    _room?.sendSettingsUpdate(SettingsUpdate(distanceSpeed: value, source: _source));
   }
 
   @override
@@ -225,7 +314,28 @@ class _ControllerScreenState extends State<ControllerScreen> {
               )
             : _room == null
                 ? _buildJoin(l10n)
-                : _buildControls(l10n),
+                : (_isClaimPending || !_isActiveController)
+                    ? _buildClaiming(l10n)
+                    : _buildControls(l10n),
+      ),
+    );
+  }
+
+  Widget _buildClaiming(AppLocalizations l10n) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(
+              l10n.controllerClaiming,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -324,7 +434,7 @@ class _ControllerScreenState extends State<ControllerScreen> {
           _PhaseButton(
             label: l10n.phaseButtonStartFlight,
             icon: Icons.flight_takeoff,
-            enabled: _isSubscribed && _phase == GamePhase.waiting,
+            enabled: _isSubscribed && _isActiveController && _phase == GamePhase.waiting,
             onPressed: () => _sendPhaseAction(PhaseAction.startCruise),
           ),
           const SizedBox(height: 8),
@@ -332,7 +442,7 @@ class _ControllerScreenState extends State<ControllerScreen> {
             label: l10n.phaseButtonEngineFailure,
             icon: Icons.warning_amber_rounded,
             color: Colors.redAccent,
-            enabled: _isSubscribed && _phase == GamePhase.cruise,
+            enabled: _isSubscribed && _isActiveController && _phase == GamePhase.cruise,
             onPressed: () => _sendPhaseAction(PhaseAction.engineMalfunction),
           ),
           const SizedBox(height: 8),
@@ -340,7 +450,7 @@ class _ControllerScreenState extends State<ControllerScreen> {
             label: l10n.phaseButtonStartEmergency,
             icon: Icons.flight_land,
             color: Colors.orangeAccent,
-            enabled: _isSubscribed && _phase == GamePhase.briefing,
+            enabled: _isSubscribed && _isActiveController && _phase == GamePhase.briefing,
             onPressed: () => _sendPhaseAction(PhaseAction.startEmergency),
           ),
         ],
@@ -355,7 +465,7 @@ class _ControllerScreenState extends State<ControllerScreen> {
           child: _CounterCard(
             label: l10n.controllerLeftCounter,
             value: _counterLeft,
-            enabled: _controlsActive,
+            enabled: _isActiveController,
             onIncrement: () => _changeCounter(left: true, delta: 1),
             onDecrement: () => _changeCounter(left: true, delta: -1),
           ),
@@ -365,7 +475,7 @@ class _ControllerScreenState extends State<ControllerScreen> {
           child: _CounterCard(
             label: l10n.controllerRightCounter,
             value: _counterRight,
-            enabled: _controlsActive,
+            enabled: _isActiveController,
             onIncrement: () => _changeCounter(left: false, delta: 1),
             onDecrement: () => _changeCounter(left: false, delta: -1),
           ),
@@ -432,7 +542,7 @@ class _ControllerScreenState extends State<ControllerScreen> {
             max: 30,
             divisions: 25,
             label: '${_distanceSpeed.round()}',
-            onChanged: _controlsActive ? _changeDistanceSpeed : null,
+            onChanged: _isActiveController ? _changeDistanceSpeed : null,
           ),
         ],
       ),

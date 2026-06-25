@@ -134,6 +134,7 @@ class GameState extends ChangeNotifier {
   // --- Applying broadcast updates from controllers ---
 
   void applyCounterUpdate(CounterUpdate update) {
+    if (_phase != GamePhase.emergency) return;
     if (update.counterLeft != null) {
       _counterLeft = math.max(0, update.counterLeft!);
     }
@@ -151,6 +152,7 @@ class GameState extends ChangeNotifier {
   }
 
   void applySettingsUpdate(SettingsUpdate update) {
+    if (_phase != GamePhase.emergency) return;
     _distanceSpeed = update.distanceSpeed;
     notifyListeners();
   }

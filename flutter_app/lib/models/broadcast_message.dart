@@ -8,6 +8,10 @@ abstract final class BroadcastEvents {
   static const settingsUpdate = 'settings_update';
   static const phaseAction = 'phase_action';
   static const sessionCancel = 'session_cancel';
+  static const controllerClaimRequest = 'controller_claim_request';
+  static const controllerClaimResponse = 'controller_claim_response';
+  static const controllerHeartbeat = 'controller_heartbeat';
+  static const controllerReleased = 'controller_released';
 }
 
 /// A partial update of the cabin counters. Either side may be omitted so two
@@ -93,6 +97,100 @@ class PhaseActionMessage {
     return PhaseActionMessage(
       action: action,
       source: json['source'] as String? ?? 'unknown',
+    );
+  }
+}
+
+/// Requests exclusive control of a room from the cockpit.
+class ControllerClaimRequest {
+  const ControllerClaimRequest({required this.source, required this.requestedAtMs});
+
+  final String source;
+  final int requestedAtMs;
+
+  Map<String, dynamic> toJson() => {
+        'source': source,
+        'requestedAtMs': requestedAtMs,
+      };
+
+  factory ControllerClaimRequest.fromJson(Map<String, dynamic> json) {
+    return ControllerClaimRequest(
+      source: json['source'] as String? ?? 'unknown',
+      requestedAtMs: (json['requestedAtMs'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+/// Response to a [ControllerClaimRequest]. Only the controller whose
+/// `targetSource` matches should act on it.
+class ControllerClaimResponse {
+  const ControllerClaimResponse({
+    required this.targetSource,
+    required this.accepted,
+    required this.activeSource,
+    this.expiresInMs,
+  });
+
+  final String targetSource;
+  final bool accepted;
+  final String activeSource;
+  final int? expiresInMs;
+
+  Map<String, dynamic> toJson() => {
+        'targetSource': targetSource,
+        'accepted': accepted,
+        'activeSource': activeSource,
+        if (expiresInMs != null) 'expiresInMs': expiresInMs,
+      };
+
+  factory ControllerClaimResponse.fromJson(Map<String, dynamic> json) {
+    return ControllerClaimResponse(
+      targetSource: json['targetSource'] as String? ?? 'unknown',
+      accepted: json['accepted'] as bool? ?? false,
+      activeSource: json['activeSource'] as String? ?? 'unknown',
+      expiresInMs: (json['expiresInMs'] as num?)?.toInt(),
+    );
+  }
+}
+
+/// Periodic keepalive from the active controller so the cockpit can release the
+/// lock if the controller disappears.
+class ControllerHeartbeat {
+  const ControllerHeartbeat({required this.source, required this.tMs});
+
+  final String source;
+  final int tMs;
+
+  Map<String, dynamic> toJson() => {
+        'source': source,
+        'tMs': tMs,
+      };
+
+  factory ControllerHeartbeat.fromJson(Map<String, dynamic> json) {
+    return ControllerHeartbeat(
+      source: json['source'] as String? ?? 'unknown',
+      tMs: (json['tMs'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+/// Informational event broadcast by the cockpit when the active controller lock
+/// expires or is released.
+class ControllerReleased {
+  const ControllerReleased({required this.activeSource, required this.reason});
+
+  final String activeSource;
+  final String reason;
+
+  Map<String, dynamic> toJson() => {
+        'activeSource': activeSource,
+        'reason': reason,
+      };
+
+  factory ControllerReleased.fromJson(Map<String, dynamic> json) {
+    return ControllerReleased(
+      activeSource: json['activeSource'] as String? ?? 'unknown',
+      reason: json['reason'] as String? ?? 'unknown',
     );
   }
 }
