@@ -14,6 +14,7 @@ import '../services/audio_service.dart';
 import '../services/room_code_generator.dart';
 import '../services/supabase_service.dart';
 import '../widgets/artificial_horizon.dart';
+import '../widgets/island_distance_overlay.dart';
 import '../widgets/neon_display.dart';
 import '../widgets/phase_scenery.dart';
 import 'success_screen.dart';
@@ -299,6 +300,13 @@ class _CockpitScreenState extends State<CockpitScreen>
                 relativeBearing: state.relativeBearing,
                 stormIntensity: state.stormIntensity,
               ),
+              if (state.phase == GamePhase.emergency)
+                IslandDistanceOverlay(
+                  distanceMeters: state.distanceToIsland.round(),
+                  relativeBearing: state.relativeBearing,
+                  islandApproach: islandApproach,
+                  unit: l10n.unitMeters,
+                ),
               Transform.translate(
                 offset: shake,
                 child: SafeArea(
@@ -572,27 +580,12 @@ class _CockpitScreenState extends State<CockpitScreen>
         return Stack(
           children: [
             Align(
-              alignment: Alignment.centerLeft,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  NeonDisplay(
-                    label: l10n.labelAltitude,
-                    value: state.altitude.round().toString(),
-                    unit: l10n.unitMeters,
-                    scale: scale,
-                  ),
-                  SizedBox(height: 28 * scale),
-                  NeonDisplay(
-                    label: l10n.labelDistance,
-                    value: state.distanceToIsland.round().toString(),
-                    unit: l10n.unitMeters,
-                    color: const Color(0xFF18DCFF),
-                    scale: scale,
-                  ),
-                ],
+              alignment: Alignment.bottomLeft,
+              child: NeonDisplay(
+                label: l10n.labelAltitude,
+                value: state.altitude.round().toString(),
+                unit: l10n.unitMeters,
+                scale: scale,
               ),
             ),
             Align(

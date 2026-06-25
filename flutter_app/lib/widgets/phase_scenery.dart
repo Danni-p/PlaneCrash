@@ -1,8 +1,7 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../models/game_phase.dart';
+import 'island_viewport_layout.dart';
 
 /// Full-screen background scenery for the cockpit. During cruise a distant
 /// landmass drifts closer (purely cosmetic). Once the emergency landing begins
@@ -66,14 +65,9 @@ class _SceneryPainter extends CustomPainter {
   final double relativeBearing;
   final double stormIntensity;
 
-  /// Half of the horizontal field of view. The island is visible while its
-  /// relative bearing stays within `+/- _halfFovRad`; beyond that an edge arrow
-  /// points the way back to it.
-  static const double _halfFovRad = 55 * math.pi / 180;
-
   @override
   void paint(Canvas canvas, Size size) {
-    final horizonY = size.height * 0.52;
+    final horizonY = IslandViewportLayout.horizonYFor(size);
 
     _paintSky(canvas, size, horizonY);
     _paintSea(canvas, size, horizonY);
@@ -95,17 +89,25 @@ class _SceneryPainter extends CustomPainter {
   /// Draws the target island offset by its bearing, or an edge arrow when it
   /// has drifted out of view.
   void _paintTargetIsland(Canvas canvas, Size size, double horizonY) {
-    if (relativeBearing.abs() > _halfFovRad) {
-      _paintEdgeArrow(canvas, size, horizonY, toRight: relativeBearing > 0);
+    final layout = IslandViewportLayout.forTarget(
+      size: size,
+      relativeBearing: relativeBearing,
+      islandApproach: islandApproach,
+    );
+    if (layout.mode != IslandViewportMode.onIsland) {
+      _paintEdgeArrow(
+        canvas,
+        horizonY: layout.horizonY,
+        tipX: layout.arrowTipX!,
+        baseX: layout.arrowBaseX!,
+      );
       return;
     }
-    final centerX = size.width / 2 +
-        (relativeBearing / _halfFovRad) * (size.width / 2);
     _paintLand(
       canvas,
       size,
       horizonY,
-      centerX: centerX,
+      centerX: layout.islandCenterX!,
       progress: islandApproach,
       scale: 1.0,
     );
@@ -114,20 +116,15 @@ class _SceneryPainter extends CustomPainter {
   /// Draws a chevron on the left or right screen edge pointing toward the
   /// island when it is off-screen.
   void _paintEdgeArrow(
-    Canvas canvas,
-    Size size,
-    double horizonY, {
-    required bool toRight,
+    Canvas canvas, {
+    required double horizonY,
+    required double tipX,
+    required double baseX,
   }) {
-    const margin = 18.0;
-    const halfHeight = 26.0;
-    const depth = 28.0;
-    final tipX = toRight ? size.width - margin : margin;
-    final baseX = toRight ? tipX - depth : tipX + depth;
     final path = Path()
       ..moveTo(tipX, horizonY)
-      ..lineTo(baseX, horizonY - halfHeight)
-      ..lineTo(baseX, horizonY + halfHeight)
+      ..lineTo(baseX, horizonY - IslandViewportLayout.arrowHalfHeight)
+      ..lineTo(baseX, horizonY + IslandViewportLayout.arrowHalfHeight)
       ..close();
     final paint = Paint()..color = const Color(0xFF39FF14);
     canvas.drawPath(path, paint);
