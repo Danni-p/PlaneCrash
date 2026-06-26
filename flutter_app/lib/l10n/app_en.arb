@@ -62,7 +62,6 @@
     "placeholders": { "meters": { "type": "int" } }
   },
   "successSwimHint": "The crew has to swim the rest in the next game.",
-  "successFinalAltitude": "Final altitude",
   "successPeakCrew": "Peak active crew",
   "successWeatherAtEnd": "Weather at landing",
   "successDuration": "Flight duration",

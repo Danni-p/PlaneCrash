@@ -81,10 +81,6 @@ class _SuccessScreenState extends State<SuccessScreen> {
                   ],
                   const SizedBox(height: 32),
                   _StatRow(
-                    label: l10n.successFinalAltitude,
-                    value: '0 ${l10n.unitMeters}',
-                  ),
-                  _StatRow(
                     label: l10n.successPeakCrew,
                     value: '${widget.peakLeft + widget.peakRight} '
                         '(${widget.peakLeft} / ${widget.peakRight})',

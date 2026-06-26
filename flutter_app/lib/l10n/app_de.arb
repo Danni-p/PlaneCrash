@@ -62,7 +62,6 @@
     "placeholders": { "meters": { "type": "int" } }
   },
   "successSwimHint": "Die Crew muss den Rest im nächsten Spiel schwimmen.",
-  "successFinalAltitude": "Endhöhe",
   "successPeakCrew": "Maximale aktive Crew",
   "successWeatherAtEnd": "Wetter bei Landung",
   "successDuration": "Flugdauer",
