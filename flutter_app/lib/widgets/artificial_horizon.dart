@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'instrument_aircraft_icon.dart';
+
 /// An attitude indicator (artificial horizon): a circle split into sky and
 /// ground that rolls with the bank angle. A fixed aircraft reference stays level
 /// on top so the roll is easy to read.
@@ -32,7 +34,7 @@ class ArtificialHorizon extends StatelessWidget {
               ),
             ),
           ),
-          CustomPaint(size: Size.square(size), painter: _AircraftReferencePainter()),
+          CustomPaint(size: Size.square(size), painter: const InstrumentAircraftIcon()),
         ],
       ),
     );
@@ -92,40 +94,4 @@ class _HorizonPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _HorizonPainter oldDelegate) => false;
-}
-
-class _AircraftReferencePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = size.center(Offset.zero);
-    final paint = Paint()
-      ..color = const Color(0xFFFFC312)
-      ..strokeWidth = 4
-      ..strokeCap = StrokeCap.round;
-
-    final wing = size.width * 0.22;
-    final gap = size.width * 0.06;
-    // Left wing, centre dot, right wing.
-    canvas.drawLine(
-      Offset(center.dx - wing, center.dy),
-      Offset(center.dx - gap, center.dy),
-      paint,
-    );
-    canvas.drawLine(
-      Offset(center.dx + gap, center.dy),
-      Offset(center.dx + wing, center.dy),
-      paint,
-    );
-    canvas.drawCircle(center, 3, paint);
-
-    // Outer bezel.
-    final bezel = Paint()
-      ..color = Colors.white24
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3;
-    canvas.drawCircle(center, size.width / 2 - 1.5, bezel);
-  }
-
-  @override
-  bool shouldRepaint(covariant _AircraftReferencePainter oldDelegate) => false;
 }

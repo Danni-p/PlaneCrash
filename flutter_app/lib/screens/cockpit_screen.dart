@@ -17,6 +17,7 @@ import '../widgets/artificial_horizon.dart';
 import '../widgets/island_distance_overlay.dart';
 import '../widgets/neon_display.dart';
 import '../widgets/phase_scenery.dart';
+import '../widgets/radar_display.dart';
 import 'success_screen.dart';
 
 /// The tablet cockpit: creates a room, runs the authoritative simulation and
@@ -590,9 +591,20 @@ class _CockpitScreenState extends State<CockpitScreen>
             ),
             Align(
               alignment: Alignment.bottomRight,
-              child: ArtificialHorizon(
-                bankAngleDegrees: state.displayBankAngle,
-                size: horizonSize,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  RadarDisplay(
+                    relativeBearingRad: state.relativeBearing,
+                    distanceMeters: state.distanceToIsland,
+                    size: horizonSize,
+                  ),
+                  SizedBox(width: 8 * scale),
+                  ArtificialHorizon(
+                    bankAngleDegrees: state.displayBankAngle,
+                    size: horizonSize,
+                  ),
+                ],
               ),
             ),
           ],
