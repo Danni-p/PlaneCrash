@@ -36,6 +36,24 @@ abstract final class IslandViewportLayout {
   static const double labelPadding = 12.0;
   static const double arrowLabelGap = 8.0;
 
+  /// Normalized distance floor for inverse visual scaling (100 m at 10 km spawn).
+  static const double minVisualDistanceRatio = 0.01;
+
+  /// Maps straight-line distance to a 0..1 visual approach progress using
+  /// inverse-distance perspective: slow growth while far, rapid growth when close.
+  /// Gameplay distance and score are unchanged; only island size uses this value.
+  static double visualApproachFromDistance({
+    required double distanceMeters,
+    required double initialDistance,
+    double minDistanceRatio = minVisualDistanceRatio,
+  }) {
+    if (initialDistance <= 0) return 0.0;
+    final r = (distanceMeters / initialDistance).clamp(minDistanceRatio, 1.0);
+    final inv = 1 / r;
+    final invMin = 1 / minDistanceRatio;
+    return ((inv - 1) / (invMin - 1)).clamp(0.0, 1.0);
+  }
+
   static double horizonFractionForAltitude(double altitude) {
     final t =
         (1 - altitude / PhysicsEngine.initialAltitude).clamp(0.0, 1.0);

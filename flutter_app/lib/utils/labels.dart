@@ -24,4 +24,12 @@ abstract final class Labels {
     if (parts.isEmpty) return l10n.weatherNone;
     return parts.join(', ');
   }
+
+  /// Cockpit wind warning, e.g. "Light breeze — Wind from left".
+  static String windWarning(AppLocalizations l10n, WeatherInputs weather) {
+    final direction = weather.windLeft
+        ? l10n.weatherWindLeft
+        : l10n.weatherWindRight;
+    return '${windStrength(l10n, weather.windStrength)} — $direction';
+  }
 }

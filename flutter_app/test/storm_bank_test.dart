@@ -12,8 +12,20 @@ void main() {
 
       storm.advance(0.1, random);
 
-      expect(storm.base, inInclusiveRange(-5.0, 5.0));
-      expect(storm.jitter, inInclusiveRange(storm.base - 0.5, storm.base + 0.5));
+      expect(
+        storm.base,
+        inInclusiveRange(
+          -PhysicsEngine.stormMaxBankDegrees,
+          PhysicsEngine.stormMaxBankDegrees,
+        ),
+      );
+      expect(
+        storm.jitter,
+        inInclusiveRange(
+          storm.base - PhysicsEngine.stormJitterDegrees,
+          storm.base + PhysicsEngine.stormJitterDegrees,
+        ),
+      );
     });
 
     test('re-rolls jitter about every second', () {
@@ -25,19 +37,31 @@ void main() {
 
       storm.advance(1.0, random);
       expect(storm.jitter, isNot(equals(firstJitter)));
-      expect(storm.jitter, inInclusiveRange(storm.base - 0.5, storm.base + 0.5));
+      expect(
+        storm.jitter,
+        inInclusiveRange(
+          storm.base - PhysicsEngine.stormJitterDegrees,
+          storm.base + PhysicsEngine.stormJitterDegrees,
+        ),
+      );
     });
 
-    test('re-rolls base about every ten seconds', () {
+    test('re-rolls base about every three seconds', () {
       final storm = StormBank();
       final random = math.Random(42);
 
       storm.advance(0.1, random);
       final firstBase = storm.base;
 
-      storm.advance(10.0, random);
+      storm.advance(PhysicsEngine.stormBaseIntervalSeconds, random);
       expect(storm.base, isNot(equals(firstBase)));
-      expect(storm.base, inInclusiveRange(-5.0, 5.0));
+      expect(
+        storm.base,
+        inInclusiveRange(
+          -PhysicsEngine.stormMaxBankDegrees,
+          PhysicsEngine.stormMaxBankDegrees,
+        ),
+      );
     });
 
     test('preserves elapsed time when advance is not called', () {
@@ -66,7 +90,13 @@ void main() {
       expect(storm.jitter, 0);
 
       storm.advance(0.1, random);
-      expect(storm.base, inInclusiveRange(-5.0, 5.0));
+      expect(
+        storm.base,
+        inInclusiveRange(
+          -PhysicsEngine.stormMaxBankDegrees,
+          PhysicsEngine.stormMaxBankDegrees,
+        ),
+      );
       expect(storm.base, isNot(equals(beforeReset)));
     });
   });

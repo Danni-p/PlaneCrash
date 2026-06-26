@@ -212,7 +212,7 @@ class _SceneryPainter extends CustomPainter {
     );
 
     // A palm-trunk dot for the target island once it is reasonably close.
-    if (scale >= 1.0 && t > 0.35) {
+    if (scale >= 1.0 && t > 0.2) {
       final treePaint = Paint()..color = const Color(0xFF1B5E20);
       canvas.drawCircle(
         Offset(centerX, horizonY - height * 0.9),

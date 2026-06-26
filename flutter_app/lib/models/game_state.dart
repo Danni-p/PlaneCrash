@@ -7,6 +7,7 @@ import '../engine/navigation_engine.dart';
 import '../engine/physics_engine.dart';
 import '../engine/storm_bank.dart';
 import '../engine/weather_ramp.dart';
+import '../engine/wind_gust.dart';
 import 'broadcast_message.dart';
 import 'game_phase.dart';
 import 'weather_inputs.dart';
@@ -50,6 +51,7 @@ class GameState extends ChangeNotifier {
   final WeatherRamp _windRamp = WeatherRamp(timeToTarget: 8.0);
   final BankInterpolator _bank = BankInterpolator();
   final StormBank _stormBank = StormBank();
+  final WindGust _windGust = WindGust();
 
   int _peakLeft = 0;
   int _peakRight = 0;
@@ -92,6 +94,9 @@ class GameState extends ChangeNotifier {
   /// Ramped wind intensity, 0..1.
   double get windIntensity => _windRamp.value;
 
+  /// Current gust multiplier in 0..1 before strength and ramp scaling.
+  double get windGustMultiplier => _windGust.value;
+
   int get peakLeft => _peakLeft;
   int get peakRight => _peakRight;
   int get peakTotal => _peakLeft + _peakRight;
@@ -107,6 +112,12 @@ class GameState extends ChangeNotifier {
         _stormRamp.value > 0;
     if (stormActive) {
       _stormBank.advance(dt, _random);
+    }
+    final windActive = _phase == GamePhase.emergency &&
+        (_weather.windLeft || _weather.windRight) &&
+        _windRamp.value > 0;
+    if (windActive) {
+      _windGust.advance(dt, _random);
     }
     _bank.update(target: _targetBankAngle, dt: dt);
 
@@ -134,7 +145,9 @@ class GameState extends ChangeNotifier {
 
   double get _targetBankAngle {
     if (_phase != GamePhase.emergency) return 0.0;
-    final windFactor = (_weather.windStrength.value / 100.0) * _windRamp.value;
+    final maxFactor =
+        (_weather.windStrength.value / 100.0) * _windRamp.value;
+    final windFactor = maxFactor * _windGust.value;
     final windBank = PhysicsEngine.windBankDegrees(
       windDirection: _weather.windDirection,
       windFactor: windFactor,
@@ -180,6 +193,7 @@ class GameState extends ChangeNotifier {
   /// emergency landing begins so each run faces a different direction.
   void _initNavigation() {
     _stormBank.reset();
+    _windGust.reset();
     final bearing = _random.nextDouble() * 2 * math.pi;
     _island = NavigationEngine.islandFromBearing(
       bearingRad: bearing,
@@ -264,6 +278,7 @@ class GameState extends ChangeNotifier {
     _windRamp.reset();
     _bank.reset();
     _stormBank.reset();
+    _windGust.reset();
     notifyListeners();
   }
 }

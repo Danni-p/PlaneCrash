@@ -9,6 +9,74 @@ void main() {
   const size = Size(800, 600);
   const highAltitude = PhysicsEngine.initialAltitude;
 
+  group('IslandViewportLayout.visualApproachFromDistance', () {
+    const initial = PhysicsEngine.initialDistance;
+    const minRatio = IslandViewportLayout.minVisualDistanceRatio;
+
+    test('is zero at spawn distance', () {
+      expect(
+        IslandViewportLayout.visualApproachFromDistance(
+          distanceMeters: initial,
+          initialDistance: initial,
+        ),
+        0.0,
+      );
+    });
+
+    test('is one at the minimum visual distance', () {
+      expect(
+        IslandViewportLayout.visualApproachFromDistance(
+          distanceMeters: initial * minRatio,
+          initialDistance: initial,
+        ),
+        closeTo(1.0, 1e-9),
+      );
+    });
+
+    test('is about one percent at half spawn distance', () {
+      expect(
+        IslandViewportLayout.visualApproachFromDistance(
+          distanceMeters: initial / 2,
+          initialDistance: initial,
+        ),
+        closeTo(0.010101010101010102, 1e-9),
+      );
+    });
+
+    test('clamps to zero when farther than spawn', () {
+      expect(
+        IslandViewportLayout.visualApproachFromDistance(
+          distanceMeters: initial * 1.5,
+          initialDistance: initial,
+        ),
+        0.0,
+      );
+    });
+
+    test('clamps to one when closer than the visual floor', () {
+      expect(
+        IslandViewportLayout.visualApproachFromDistance(
+          distanceMeters: initial * minRatio / 2,
+          initialDistance: initial,
+        ),
+        1.0,
+      );
+    });
+
+    test('increases monotonically as distance shrinks', () {
+      final distances = [10000.0, 5000.0, 2000.0, 1000.0, 500.0, 100.0];
+      var previous = -1.0;
+      for (final distance in distances) {
+        final progress = IslandViewportLayout.visualApproachFromDistance(
+          distanceMeters: distance,
+          initialDistance: initial,
+        );
+        expect(progress, greaterThanOrEqualTo(previous));
+        previous = progress;
+      }
+    });
+  });
+
   group('IslandViewportLayout.horizonFractionForAltitude', () {
     test('at initial altitude horizon is mostly sky', () {
       expect(

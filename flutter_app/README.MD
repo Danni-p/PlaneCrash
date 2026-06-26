@@ -80,22 +80,26 @@ The plane flies on a 2D map (north-up coordinates) instead of counting a scalar 
 - `distanceToIsland` is the true straight-line distance, so steering away genuinely increases it and a bad path costs distance.
 - At altitude 0, the remaining straight-line distance is the score (0 m = perfect landing). Reaching the island while still high simply means flying over it; the plane must circle back down.
 
-The island is drawn heading-up: centered when it is dead ahead, sliding left or right as the plane turns, and replaced by a chevron on the screen edge once it leaves the field of view. The arrow side follows the island's bearing and flips edges as the bearing wraps past ±180°.
+The island is drawn heading-up: centered when it is dead ahead, sliding left or right as the plane turns, and replaced by a chevron on the screen edge once it leaves the field of view. The arrow side follows the island's bearing and flips edges as the bearing wraps past ±180°. Island **visual** size uses inverse-distance scaling so it stays small while far and grows quickly when close; the distance readout and score remain true straight-line metres.
 
 ### Bank angle
 
 ```
-windEffect  = windDirection * (windStrength / 100) * 15
-stormEffect = (randomBase[-5..5] + randomJitter[base±0.5]) * stormIntensity
+windEffect  = windDirection * (windStrength / 100) * windRamp * gustMultiplier * 15
+stormEffect = (randomBase[-2..2] + randomJitter[base±0.2]) * stormIntensity
 crewBank    = (counterRight - counterLeft) * bankPerPerson
 bankAngle   = clamp(crewBank + windEffect + stormEffect, -90, 90)
 ```
+
+`gustMultiplier` is a mid-biased random value in `0..1` that eases toward a new target every 6 seconds. At light breeze the peak bank is `0.25 * 15° = 3.75°`; gusts can be anywhere from calm (0) up to that maximum.
 
 `bankPerPerson` defaults to 2° and is adjustable on the Controller (0.5–8° in 0.5° steps) so small and large crews can tune turn sensitivity.
 
 The displayed bank angle is interpolated smoothly each frame and drives both the artificial horizon and the navigation turn rate.
 
-Storm bank timers (10 s base roll, 1 s jitter roll) run only while ramped thunderstorm intensity is above zero; they pause when intensity returns to zero.
+Storm bank timers (3 s base roll, 1 s jitter roll) run only while ramped thunderstorm intensity is above zero; they pause when intensity returns to zero.
+
+Wind gust timers (6 s target roll, 6 s ease) run only while ramped wind intensity is above zero; they pause when intensity returns to zero.
 
 ## Weather
 
@@ -104,10 +108,10 @@ but only take effect once the Emergency phase begins.
 
 | Effect          | Behaviour at full intensity                                      |
 | --------------- | --------------------------------------------------------------- |
-| Wind left/right | Bank bias of `±(windStrength / 100) * 15°`                       |
-| Thunderstorm    | +10 m/s extra altitude loss; random bank bias up to ±5° (±0.5° jitter); flicker + screen shake |
+| Wind left/right | Gusty bank bias up to `±(windStrength / 100) * 15°`; cockpit shows strength and direction |
+| Thunderstorm    | +10 m/s extra altitude loss; random bank bias up to ±2° (±0.2° jitter); flicker + screen shake |
 
-Wind strength is set in discrete steps: light breeze (25), moderate (50), strong (75), severe storm (100).
+Wind strength is set in discrete steps: light breeze (25), moderate (50), strong (75), severe storm (100). Gust targets are drawn mid-biased (clustered around half strength) so wind feels variable but not chaotic; strength can drop to zero between gusts.
 
 ### Gradual ramp
 

@@ -24,19 +24,30 @@ abstract final class PhysicsEngine {
   static const double stormMaxBonus = 10.0;
 
   /// Maximum thunderstorm-induced bank bias in degrees at full intensity.
-  static const double stormMaxBankDegrees = 5.0;
+  static const double stormMaxBankDegrees = 2.0;
 
   /// Random jitter range around the storm base bank, in degrees.
-  static const double stormJitterDegrees = 0.5;
+  static const double stormJitterDegrees = 0.2;
 
   /// Seconds between new storm base bank rolls.
-  static const double stormBaseIntervalSeconds = 10.0;
+  static const double stormBaseIntervalSeconds = 3.0;
 
   /// Seconds between new storm jitter rolls.
   static const double stormJitterIntervalSeconds = 1.0;
 
   /// Maximum wind-induced bank bias in degrees at full strength.
   static const double maxWindBankDegrees = 15.0;
+
+  /// Seconds between new wind gust target rolls.
+  static const double windGustIntervalSeconds = 6.0;
+
+  /// Seconds to ease the current gust toward each new target (~90% reached).
+  static const double windGustApproachSeconds = 6.0;
+
+  /// Draws a value in `0..1` biased toward the midpoint (triangular distribution).
+  static double midBiasedUnit(math.Random random) {
+    return (random.nextDouble() + random.nextDouble()) / 2;
+  }
 
   /// Default bank degrees per person on one side when the counters are imbalanced.
   static const double defaultBankPerPerson = 2.0;

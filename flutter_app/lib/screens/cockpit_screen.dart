@@ -14,8 +14,10 @@ import '../models/game_state.dart';
 import '../services/audio_service.dart';
 import '../services/room_code_generator.dart';
 import '../services/supabase_service.dart';
+import '../utils/labels.dart';
 import '../widgets/artificial_horizon.dart';
 import '../widgets/island_distance_overlay.dart';
+import '../widgets/island_viewport_layout.dart';
 import '../widgets/neon_display.dart';
 import '../widgets/phase_scenery.dart';
 import '../widgets/radar_display.dart';
@@ -283,9 +285,10 @@ class _CockpitScreenState extends State<CockpitScreen>
         listenable: _gameState,
         builder: (context, _) {
           final state = _gameState;
-          final islandApproach = (1 -
-                  state.distanceToIsland / PhysicsEngine.initialDistance)
-              .clamp(0.0, 1.0);
+          final islandApproach = IslandViewportLayout.visualApproachFromDistance(
+            distanceMeters: state.distanceToIsland,
+            initialDistance: PhysicsEngine.initialDistance,
+          );
           final shakeAmp = 6.0 * state.stormIntensity;
           final shake = Offset(
             (_random.nextDouble() * 2 - 1) * shakeAmp,
@@ -583,6 +586,14 @@ class _CockpitScreenState extends State<CockpitScreen>
 
         return Stack(
           children: [
+            if (state.weather.windLeft || state.weather.windRight)
+              Align(
+                alignment: Alignment.topCenter,
+                child: Padding(
+                  padding: EdgeInsets.only(top: 8 * scale),
+                  child: _buildWindWarning(l10n, state, scale),
+                ),
+              ),
             if (kDebugMode)
               Positioned(
                 top: 8 * scale,
@@ -628,6 +639,39 @@ class _CockpitScreenState extends State<CockpitScreen>
           ],
         );
       },
+    );
+  }
+
+  Widget _buildWindWarning(
+    AppLocalizations l10n,
+    GameState state,
+    double scale,
+  ) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: 20 * scale,
+        vertical: 10 * scale,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.amber.shade900.withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.yellowAccent, width: 2),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.air, color: Colors.yellowAccent, size: 28 * scale),
+          SizedBox(width: 12 * scale),
+          Text(
+            Labels.windWarning(l10n, state.weather),
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18 * scale,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
