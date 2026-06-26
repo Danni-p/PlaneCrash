@@ -301,12 +301,14 @@ class _CockpitScreenState extends State<CockpitScreen>
                 islandApproach: islandApproach,
                 relativeBearing: state.relativeBearing,
                 stormIntensity: state.stormIntensity,
+                altitude: state.altitude,
               ),
               if (state.phase == GamePhase.emergency)
                 IslandDistanceOverlay(
                   distanceMeters: state.distanceToIsland.round(),
                   relativeBearing: state.relativeBearing,
                   islandApproach: islandApproach,
+                  altitude: state.altitude,
                   unit: l10n.unitMeters,
                 ),
               Transform.translate(

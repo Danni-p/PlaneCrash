@@ -2,10 +2,42 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:planecrash/engine/physics_engine.dart';
 import 'package:planecrash/widgets/island_viewport_layout.dart';
 
 void main() {
   const size = Size(800, 600);
+  const highAltitude = PhysicsEngine.initialAltitude;
+
+  group('IslandViewportLayout.horizonFractionForAltitude', () {
+    test('at initial altitude horizon is mostly sky', () {
+      expect(
+        IslandViewportLayout.horizonFractionForAltitude(highAltitude),
+        closeTo(IslandViewportLayout.horizonFractionAtHighAltitude, 1e-9),
+      );
+    });
+
+    test('at sea level horizon is mostly water', () {
+      expect(
+        IslandViewportLayout.horizonFractionForAltitude(0),
+        closeTo(IslandViewportLayout.horizonFractionAtLowAltitude, 1e-9),
+      );
+    });
+
+    test('at half altitude horizon is between high and low', () {
+      final fraction = IslandViewportLayout.horizonFractionForAltitude(
+        highAltitude / 2,
+      );
+      expect(
+        fraction,
+        greaterThan(IslandViewportLayout.horizonFractionAtLowAltitude),
+      );
+      expect(
+        fraction,
+        lessThan(IslandViewportLayout.horizonFractionAtHighAltitude),
+      );
+    });
+  });
 
   group('IslandViewportLayout.forTarget', () {
     test('bearing zero places label centered above island peak', () {
@@ -13,13 +45,15 @@ void main() {
         size: size,
         relativeBearing: 0,
         islandApproach: 0.5,
+        altitude: highAltitude,
       );
 
       expect(layout.mode, IslandViewportMode.onIsland);
       expect(layout.islandCenterX, closeTo(400, 1e-9));
       expect(layout.labelPosition.dx, closeTo(400, 1e-9));
 
-      final horizonY = IslandViewportLayout.horizonYFor(size);
+      final horizonY =
+          IslandViewportLayout.horizonYFor(size, altitude: highAltitude);
       final land = IslandViewportLayout.landMetrics(
         size: size,
         progress: 0.5,
@@ -38,6 +72,7 @@ void main() {
         size: size,
         relativeBearing: 60 * math.pi / 180,
         islandApproach: 0.5,
+        altitude: highAltitude,
       );
 
       expect(layout.mode, IslandViewportMode.offScreenRight);
@@ -55,7 +90,10 @@ void main() {
       );
       expect(
         layout.labelPosition.dy,
-        closeTo(IslandViewportLayout.horizonYFor(size), 1e-9),
+        closeTo(
+          IslandViewportLayout.horizonYFor(size, altitude: highAltitude),
+          1e-9,
+        ),
       );
       expect(layout.labelFractionalTranslation, const Offset(-1.0, -0.5));
     });
@@ -65,6 +103,7 @@ void main() {
         size: size,
         relativeBearing: -60 * math.pi / 180,
         islandApproach: 0.5,
+        altitude: highAltitude,
       );
 
       expect(layout.mode, IslandViewportMode.offScreenLeft);
@@ -82,7 +121,10 @@ void main() {
       );
       expect(
         layout.labelPosition.dy,
-        closeTo(IslandViewportLayout.horizonYFor(size), 1e-9),
+        closeTo(
+          IslandViewportLayout.horizonYFor(size, altitude: highAltitude),
+          1e-9,
+        ),
       );
       expect(layout.labelFractionalTranslation, const Offset(0.0, -0.5));
     });

@@ -12,13 +12,13 @@ abstract final class PhysicsEngine {
   static const double initialDistance = 10000.0;
 
   /// Altitude lost per second with zero active crew.
-  static const double baseSinkRate = 15.0;
+  static const double baseSinkRate = 25.0;
 
   /// Reduction of the per-second sink rate for each active crew member.
   static const double reductionPerPerson = 1.3;
 
   /// Lower bound on the sink rate; the plane always descends a little.
-  static const double minSinkRate = 2.0;
+  static const double minSinkRate = 5.0;
 
   /// Extra altitude lost per second during a fully-ramped thunderstorm.
   static const double stormMaxBonus = 10.0;

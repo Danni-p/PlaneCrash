@@ -1,6 +1,10 @@
 import 'dart:math' as math;
 import 'dart:ui';
 
+import 'package:flutter/animation.dart';
+
+import '../engine/physics_engine.dart';
+
 /// Where the island distance label is anchored relative to the scenery.
 enum IslandViewportMode {
   onIsland,
@@ -24,14 +28,28 @@ class IslandLandMetrics {
 /// Shared geometry for the target island, edge arrows, and distance overlay.
 abstract final class IslandViewportLayout {
   static const double halfFovRad = 55 * math.pi / 180;
-  static const double horizonFraction = 0.52;
+  static const double horizonFractionAtHighAltitude = 0.85;
+  static const double horizonFractionAtLowAltitude = 0.22;
   static const double arrowMargin = 18.0;
   static const double arrowHalfHeight = 26.0;
   static const double arrowDepth = 28.0;
   static const double labelPadding = 12.0;
   static const double arrowLabelGap = 8.0;
 
-  static double horizonYFor(Size size) => size.height * horizonFraction;
+  static double horizonFractionForAltitude(double altitude) {
+    final t =
+        (1 - altitude / PhysicsEngine.initialAltitude).clamp(0.0, 1.0);
+    final eased = Curves.easeInOut.transform(t);
+    return lerpDouble(
+          horizonFractionAtHighAltitude,
+          horizonFractionAtLowAltitude,
+          eased,
+        ) ??
+        horizonFractionAtHighAltitude;
+  }
+
+  static double horizonYFor(Size size, {required double altitude}) =>
+      size.height * horizonFractionForAltitude(altitude);
 
   static IslandLandMetrics landMetrics({
     required Size size,
@@ -76,9 +94,10 @@ abstract final class IslandViewportLayout {
     required Size size,
     required double relativeBearing,
     required double islandApproach,
+    required double altitude,
     double scale = 1.0,
   }) {
-    final horizonY = horizonYFor(size);
+    final horizonY = horizonYFor(size, altitude: altitude);
 
     if (isOffScreen(relativeBearing)) {
       final toRight = relativeBearing > 0;

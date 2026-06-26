@@ -17,6 +17,7 @@ class PhaseScenery extends StatelessWidget {
     required this.islandApproach,
     required this.relativeBearing,
     required this.stormIntensity,
+    required this.altitude,
   });
 
   final GamePhase phase;
@@ -34,6 +35,9 @@ class PhaseScenery extends StatelessWidget {
   /// Ramped thunderstorm intensity, 0..1.
   final double stormIntensity;
 
+  /// Current altitude in metres; drives the scenery horizon position.
+  final double altitude;
+
   @override
   Widget build(BuildContext context) {
     return Positioned.fill(
@@ -44,6 +48,7 @@ class PhaseScenery extends StatelessWidget {
           islandApproach: islandApproach,
           relativeBearing: relativeBearing,
           stormIntensity: stormIntensity,
+          altitude: altitude,
         ),
       ),
     );
@@ -57,6 +62,7 @@ class _SceneryPainter extends CustomPainter {
     required this.islandApproach,
     required this.relativeBearing,
     required this.stormIntensity,
+    required this.altitude,
   });
 
   final GamePhase phase;
@@ -64,10 +70,11 @@ class _SceneryPainter extends CustomPainter {
   final double islandApproach;
   final double relativeBearing;
   final double stormIntensity;
+  final double altitude;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final horizonY = IslandViewportLayout.horizonYFor(size);
+    final horizonY = IslandViewportLayout.horizonYFor(size, altitude: altitude);
 
     _paintSky(canvas, size, horizonY);
     _paintSea(canvas, size, horizonY);
@@ -93,6 +100,7 @@ class _SceneryPainter extends CustomPainter {
       size: size,
       relativeBearing: relativeBearing,
       islandApproach: islandApproach,
+      altitude: altitude,
     );
     if (layout.mode != IslandViewportMode.onIsland) {
       _paintEdgeArrow(
@@ -220,6 +228,7 @@ class _SceneryPainter extends CustomPainter {
         oldDelegate.cruiseProgress != cruiseProgress ||
         oldDelegate.islandApproach != islandApproach ||
         oldDelegate.relativeBearing != relativeBearing ||
-        oldDelegate.stormIntensity != stormIntensity;
+        oldDelegate.stormIntensity != stormIntensity ||
+        oldDelegate.altitude != altitude;
   }
 }

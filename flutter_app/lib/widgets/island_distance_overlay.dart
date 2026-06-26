@@ -10,12 +10,14 @@ class IslandDistanceOverlay extends StatelessWidget {
     required this.distanceMeters,
     required this.relativeBearing,
     required this.islandApproach,
+    required this.altitude,
     required this.unit,
   });
 
   final int distanceMeters;
   final double relativeBearing;
   final double islandApproach;
+  final double altitude;
   final String unit;
 
   static const Color _distanceColor = Color(0xFF0A6B82);
@@ -30,6 +32,7 @@ class IslandDistanceOverlay extends StatelessWidget {
           size: size,
           relativeBearing: relativeBearing,
           islandApproach: islandApproach,
+          altitude: altitude,
         );
 
         return IgnorePointer(
