@@ -41,7 +41,7 @@ class AudioService {
     await _safe(() async {
       if (!_ttsReady) {
         await _tts.setLanguage('de-DE');
-        await _tts.setSpeechRate(0.45);
+        await _tts.setSpeechRate(1);
         _ttsReady = true;
       }
       await _tts.stop();
