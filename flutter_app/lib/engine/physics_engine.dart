@@ -9,7 +9,7 @@ abstract final class PhysicsEngine {
   static const double initialAltitude = 5000.0;
 
   /// Distance to the island in metres, set when the malfunction reveals it.
-  static const double initialDistance = 3000.0;
+  static const double initialDistance = 10000.0;
 
   /// Altitude lost per second with zero active crew.
   static const double baseSinkRate = 15.0;
@@ -26,8 +26,15 @@ abstract final class PhysicsEngine {
   /// Maximum wind-induced bank bias in degrees at full strength.
   static const double maxWindBankDegrees = 15.0;
 
-  /// Bank degrees contributed per unit of left/right counter difference.
-  static const double bankPerCrewDifference = 4.0;
+  /// Default bank degrees per person on one side when the counters are imbalanced.
+  static const double defaultBankPerPerson = 2.0;
+
+  /// Controller-adjustable range for [defaultBankPerPerson].
+  static const double minBankPerPerson = 0.5;
+  static const double maxBankPerPerson = 8.0;
+
+  /// Maximum combined crew + wind bank angle in degrees.
+  static const double maxBankDegrees = 90.0;
 
   /// Default island approach speed in metres per second.
   static const double defaultDistanceSpeed = 15.0;
@@ -59,13 +66,17 @@ abstract final class PhysicsEngine {
     return windDirection * windFactor.clamp(0.0, 1.0) * maxWindBankDegrees;
   }
 
-  /// Target bank angle in degrees from crew balance plus wind.
+  /// Target bank angle in degrees from crew balance plus wind, clamped to
+  /// [maxBankDegrees]. More people on the left bank left; more on the right
+  /// bank right.
   static double bankAngle({
     required int counterLeft,
     required int counterRight,
+    required double bankPerPerson,
     required double windBankDegrees,
   }) {
-    return (counterLeft - counterRight) * bankPerCrewDifference + windBankDegrees;
+    final crew = (counterRight - counterLeft) * bankPerPerson;
+    return (crew + windBankDegrees).clamp(-maxBankDegrees, maxBankDegrees);
   }
 
   /// Eases [current] toward [target], reaching ~90% after [timeToTarget]

@@ -51,6 +51,7 @@ class _ControllerScreenState extends State<ControllerScreen> {
   int _counterRight = 0;
   WeatherInputs _weather = const WeatherInputs();
   double _distanceSpeed = PhysicsEngine.defaultDistanceSpeed;
+  double _bankPerPerson = PhysicsEngine.defaultBankPerPerson;
 
   bool get _controlsActive => _phase == GamePhase.emergency;
   bool get _canSendControlUpdates => _isActiveController && _controlsActive;
@@ -181,6 +182,7 @@ class _ControllerScreenState extends State<ControllerScreen> {
     _counterRight = 0;
     _weather = const WeatherInputs();
     _distanceSpeed = PhysicsEngine.defaultDistanceSpeed;
+    _bankPerPerson = PhysicsEngine.defaultBankPerPerson;
     _briefingTimer?.cancel();
   }
 
@@ -240,7 +242,11 @@ class _ControllerScreenState extends State<ControllerScreen> {
       WeatherUpdate(weather: _weather, source: _source),
     );
     _room!.sendSettingsUpdate(
-      SettingsUpdate(distanceSpeed: _distanceSpeed, source: _source),
+      SettingsUpdate(
+        distanceSpeed: _distanceSpeed,
+        bankPerPerson: _bankPerPerson,
+        source: _source,
+      ),
     );
   }
 
@@ -289,7 +295,21 @@ class _ControllerScreenState extends State<ControllerScreen> {
   void _changeDistanceSpeed(double value) {
     setState(() => _distanceSpeed = value);
     if (!_canSendControlUpdates) return;
-    _room?.sendSettingsUpdate(SettingsUpdate(distanceSpeed: value, source: _source));
+    _room?.sendSettingsUpdate(_settingsUpdate(distanceSpeed: value));
+  }
+
+  void _changeBankPerPerson(double value) {
+    setState(() => _bankPerPerson = value);
+    if (!_canSendControlUpdates) return;
+    _room?.sendSettingsUpdate(_settingsUpdate(bankPerPerson: value));
+  }
+
+  SettingsUpdate _settingsUpdate({double? distanceSpeed, double? bankPerPerson}) {
+    return SettingsUpdate(
+      distanceSpeed: distanceSpeed ?? _distanceSpeed,
+      bankPerPerson: bankPerPerson ?? _bankPerPerson,
+      source: _source,
+    );
   }
 
   @override
@@ -422,6 +442,8 @@ class _ControllerScreenState extends State<ControllerScreen> {
         _buildWeather(l10n),
         const SizedBox(height: 24),
         _buildDistanceSpeed(l10n),
+        const SizedBox(height: 24),
+        _buildBankPerPerson(l10n),
       ],
     );
   }
@@ -543,6 +565,29 @@ class _ControllerScreenState extends State<ControllerScreen> {
             divisions: 25,
             label: '${_distanceSpeed.round()}',
             onChanged: _isActiveController ? _changeDistanceSpeed : null,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBankPerPerson(AppLocalizations l10n) {
+    return _Section(
+      title: l10n.controllerBankPerPerson,
+      child: Column(
+        children: [
+          Text(
+            '${_bankPerPerson.toStringAsFixed(1)}°',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          Slider(
+            value: _bankPerPerson,
+            min: PhysicsEngine.minBankPerPerson,
+            max: PhysicsEngine.maxBankPerPerson,
+            divisions: ((PhysicsEngine.maxBankPerPerson - PhysicsEngine.minBankPerPerson) * 2)
+                .round(),
+            label: _bankPerPerson.toStringAsFixed(1),
+            onChanged: _isActiveController ? _changeBankPerPerson : null,
           ),
         ],
       ),

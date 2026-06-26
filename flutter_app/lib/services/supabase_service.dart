@@ -319,6 +319,7 @@ class RoomConnection {
         map.containsKey('thunderstorm') ||
         map.containsKey('windLeft') ||
         map.containsKey('distanceSpeed') ||
+        map.containsKey('bankPerPerson') ||
         map.containsKey('requestedAtMs') ||
         map.containsKey('targetSource') ||
         map.containsKey('accepted') ||

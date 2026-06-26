@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -580,6 +581,21 @@ class _CockpitScreenState extends State<CockpitScreen>
 
         return Stack(
           children: [
+            if (kDebugMode)
+              Positioned(
+                top: 8 * scale,
+                left: 8 * scale,
+                child: Text(
+                  'bank/person: ${state.bankPerPerson.toStringAsFixed(1)}°  '
+                  'target: ${state.targetBankAngle.toStringAsFixed(1)}°  '
+                  'display: ${state.displayBankAngle.toStringAsFixed(1)}°',
+                  style: TextStyle(
+                    color: Colors.white54,
+                    fontSize: 11 * scale,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ),
             Align(
               alignment: Alignment.bottomLeft,
               child: NeonDisplay(

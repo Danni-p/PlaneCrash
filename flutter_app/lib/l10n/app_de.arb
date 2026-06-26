@@ -49,6 +49,7 @@
   "windStrengthStrong": "Stark",
   "windStrengthStorm": "Schwerer Sturm",
   "controllerDistanceSpeed": "Annäherungsgeschwindigkeit",
+  "controllerBankPerPerson": "Rollwinkel pro Person",
   "controllerPhaseSection": "Flugphasen",
   "phaseButtonStartFlight": "Flug starten",
   "phaseButtonEngineFailure": "Triebwerksausfall",

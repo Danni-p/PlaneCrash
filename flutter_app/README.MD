@@ -41,7 +41,7 @@ Success ◀──(altitude = 0)── Emergency ◀──(Notlandung starten)─
 - **Cruise**: Altitude is stable (5000 m). A distant landmass slowly approaches at a fixed cosmetic speed. Cabin controls are visible but inactive.
 - **Malfunction**: An alarm and a German computer voice announce the emergency. The plane does not sink yet and the target island is not shown.
 - **Briefing**: A static screen while real-world instructors explain the rules. Waits for a Controller to start.
-- **Emergency**: Per-frame physics run, all controls are live, and the plane begins to sink. The island is spawned at a random bearing 3000 m away and rendered on the horizon. The run ends when altitude reaches 0.
+- **Emergency**: Per-frame physics run, all controls are live, and the plane begins to sink. The island is spawned at a random bearing 10 000 m away and rendered on the horizon. The run ends when altitude reaches 0.
 - **Finished**: The success screen shows the distance to the island as the primary score.
 
 Any joined Controller can trigger the phase-advancing buttons.
@@ -74,7 +74,7 @@ altitudeLossPerSecond = max(2.0, 15.0 - activeTotal * 1.3) + stormBonus
 
 The plane flies on a 2D map (north-up coordinates) instead of counting a scalar down.
 
-- When the emergency landing starts, the island is placed at a random bearing 3000 m from the plane. It can be anywhere in the full circle, including behind the plane.
+- When the emergency landing starts, the island is placed at a random bearing 10 000 m from the plane. It can be anywhere in the full circle, including behind the plane.
 - The plane moves at a constant ground speed (the Controller-adjustable approach speed, default 15 m/s) along its current heading. Speed is unaffected by turns.
 - Bank angle is the only thing that turns the plane: `heading += bankAngle * turnRate`. The crew must keep the cabin balanced to fly straight; nothing auto-corrects the heading.
 - `distanceToIsland` is the true straight-line distance, so steering away genuinely increases it and a bad path costs distance.
@@ -86,8 +86,11 @@ The island is drawn heading-up: centered when it is dead ahead, sliding left or 
 
 ```
 windEffect = windDirection * (windStrength / 100) * 15
-bankAngle  = (counterLeft - counterRight) * 4 + windEffect
+crewBank   = (counterRight - counterLeft) * bankPerPerson
+bankAngle  = clamp(crewBank + windEffect, -90, 90)
 ```
+
+`bankPerPerson` defaults to 2° and is adjustable on the Controller (0.5–8° in 0.5° steps) so small and large crews can tune turn sensitivity.
 
 The displayed bank angle is interpolated smoothly each frame and drives both the artificial horizon and the navigation turn rate.
 
@@ -120,7 +123,7 @@ Broadcast event types:
 
 - `counter_update` — left and/or right counter
 - `weather_update` — toggles and wind strength
-- `settings_update` — approach (distance) speed
+- `settings_update` — approach speed and bank-per-person sensitivity
 - `phase_action` — `start_cruise`, `engine_malfunction`, `start_emergency`
 - `session_cancel` — Cockpit ended the session
 

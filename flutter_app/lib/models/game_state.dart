@@ -35,6 +35,7 @@ class GameState extends ChangeNotifier {
   GamePhase _phase = GamePhase.waiting;
   double _altitude = PhysicsEngine.initialAltitude;
   double _distanceSpeed = PhysicsEngine.defaultDistanceSpeed;
+  double _bankPerPerson = PhysicsEngine.defaultBankPerPerson;
   int _counterLeft = 0;
   int _counterRight = 0;
   WeatherInputs _weather = const WeatherInputs();
@@ -68,6 +69,7 @@ class GameState extends ChangeNotifier {
       NavigationEngine.relativeBearing(state: _nav, island: _island);
 
   double get distanceSpeed => _distanceSpeed;
+  double get bankPerPerson => _bankPerPerson;
   int get counterLeft => _counterLeft;
   int get counterRight => _counterRight;
   int get activeTotal => _counterLeft + _counterRight;
@@ -78,6 +80,9 @@ class GameState extends ChangeNotifier {
 
   /// Smoothed bank angle for the artificial horizon, in degrees.
   double get displayBankAngle => _bank.value;
+
+  /// Instantaneous target bank before interpolation; useful for debug readouts.
+  double get targetBankAngle => _targetBankAngle;
 
   /// Ramped thunderstorm intensity, 0..1.
   double get stormIntensity => _stormRamp.value;
@@ -129,6 +134,7 @@ class GameState extends ChangeNotifier {
     return PhysicsEngine.bankAngle(
       counterLeft: _counterLeft,
       counterRight: _counterRight,
+      bankPerPerson: _bankPerPerson,
       windBankDegrees: windBank,
     );
   }
@@ -190,6 +196,7 @@ class GameState extends ChangeNotifier {
   void applySettingsUpdate(SettingsUpdate update) {
     if (_phase != GamePhase.emergency) return;
     _distanceSpeed = update.distanceSpeed;
+    _bankPerPerson = update.bankPerPerson;
     notifyListeners();
   }
 
@@ -228,6 +235,7 @@ class GameState extends ChangeNotifier {
     _phase = GamePhase.waiting;
     _altitude = PhysicsEngine.initialAltitude;
     _distanceSpeed = PhysicsEngine.defaultDistanceSpeed;
+    _bankPerPerson = PhysicsEngine.defaultBankPerPerson;
     _counterLeft = 0;
     _counterRight = 0;
     _weather = const WeatherInputs();

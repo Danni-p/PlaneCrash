@@ -49,6 +49,7 @@
   "windStrengthStrong": "Strong",
   "windStrengthStorm": "Severe storm",
   "controllerDistanceSpeed": "Approach speed",
+  "controllerBankPerPerson": "Bank per person",
   "controllerPhaseSection": "Flight phases",
   "phaseButtonStartFlight": "Start flight",
   "phaseButtonEngineFailure": "Engine failure",

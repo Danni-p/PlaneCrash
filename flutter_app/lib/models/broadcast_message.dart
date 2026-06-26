@@ -1,3 +1,4 @@
+import '../engine/physics_engine.dart';
 import 'game_phase.dart';
 import 'weather_inputs.dart';
 
@@ -58,21 +59,30 @@ class WeatherUpdate {
   }
 }
 
-/// An update to the island approach (distance) speed in metres per second.
+/// An update to approach speed and bank sensitivity during the emergency phase.
 class SettingsUpdate {
-  const SettingsUpdate({required this.distanceSpeed, required this.source});
+  const SettingsUpdate({
+    required this.distanceSpeed,
+    required this.bankPerPerson,
+    required this.source,
+  });
 
   final double distanceSpeed;
+  final double bankPerPerson;
   final String source;
 
   Map<String, dynamic> toJson() => {
         'distanceSpeed': distanceSpeed,
+        'bankPerPerson': bankPerPerson,
         'source': source,
       };
 
   factory SettingsUpdate.fromJson(Map<String, dynamic> json) {
     return SettingsUpdate(
-      distanceSpeed: (json['distanceSpeed'] as num?)?.toDouble() ?? 15.0,
+      distanceSpeed: (json['distanceSpeed'] as num?)?.toDouble() ??
+          PhysicsEngine.defaultDistanceSpeed,
+      bankPerPerson: (json['bankPerPerson'] as num?)?.toDouble() ??
+          PhysicsEngine.defaultBankPerPerson,
       source: json['source'] as String? ?? 'unknown',
     );
   }

@@ -48,20 +48,76 @@ void main() {
         PhysicsEngine.bankAngle(
           counterLeft: 4,
           counterRight: 4,
+          bankPerPerson: 2,
           windBankDegrees: 0,
         ),
         0,
       );
     });
 
-    test('tilts proportionally to the crew difference', () {
+    test('banks left when more people are on the left', () {
       expect(
         PhysicsEngine.bankAngle(
           counterLeft: 5,
           counterRight: 2,
+          bankPerPerson: 2,
           windBankDegrees: 0,
         ),
-        3 * PhysicsEngine.bankPerCrewDifference,
+        -6,
+      );
+    });
+
+    test('banks right when more people are on the right', () {
+      expect(
+        PhysicsEngine.bankAngle(
+          counterLeft: 2,
+          counterRight: 5,
+          bankPerPerson: 2,
+          windBankDegrees: 0,
+        ),
+        6,
+      );
+    });
+
+    test('scales linearly with bankPerPerson', () {
+      expect(
+        PhysicsEngine.bankAngle(
+          counterLeft: 0,
+          counterRight: 3,
+          bankPerPerson: 2,
+          windBankDegrees: 0,
+        ),
+        6,
+      );
+      expect(
+        PhysicsEngine.bankAngle(
+          counterLeft: 0,
+          counterRight: 3,
+          bankPerPerson: 4,
+          windBankDegrees: 0,
+        ),
+        12,
+      );
+    });
+
+    test('clamps crew plus wind to maxBankDegrees', () {
+      expect(
+        PhysicsEngine.bankAngle(
+          counterLeft: 0,
+          counterRight: 20,
+          bankPerPerson: 8,
+          windBankDegrees: 15,
+        ),
+        PhysicsEngine.maxBankDegrees,
+      );
+      expect(
+        PhysicsEngine.bankAngle(
+          counterLeft: 20,
+          counterRight: 0,
+          bankPerPerson: 8,
+          windBankDegrees: -15,
+        ),
+        -PhysicsEngine.maxBankDegrees,
       );
     });
   });
