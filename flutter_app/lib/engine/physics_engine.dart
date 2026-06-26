@@ -23,6 +23,18 @@ abstract final class PhysicsEngine {
   /// Extra altitude lost per second during a fully-ramped thunderstorm.
   static const double stormMaxBonus = 10.0;
 
+  /// Maximum thunderstorm-induced bank bias in degrees at full intensity.
+  static const double stormMaxBankDegrees = 5.0;
+
+  /// Random jitter range around the storm base bank, in degrees.
+  static const double stormJitterDegrees = 0.5;
+
+  /// Seconds between new storm base bank rolls.
+  static const double stormBaseIntervalSeconds = 10.0;
+
+  /// Seconds between new storm jitter rolls.
+  static const double stormJitterIntervalSeconds = 1.0;
+
   /// Maximum wind-induced bank bias in degrees at full strength.
   static const double maxWindBankDegrees = 15.0;
 
@@ -33,7 +45,7 @@ abstract final class PhysicsEngine {
   static const double minBankPerPerson = 0.5;
   static const double maxBankPerPerson = 8.0;
 
-  /// Maximum combined crew + wind bank angle in degrees.
+  /// Maximum combined crew + weather bank angle in degrees.
   static const double maxBankDegrees = 90.0;
 
   /// Default island approach speed in metres per second.
@@ -66,17 +78,31 @@ abstract final class PhysicsEngine {
     return windDirection * windFactor.clamp(0.0, 1.0) * maxWindBankDegrees;
   }
 
-  /// Target bank angle in degrees from crew balance plus wind, clamped to
-  /// [maxBankDegrees]. More people on the left bank left; more on the right
-  /// bank right.
+  /// Thunderstorm-induced bank bias in degrees.
+  ///
+  /// [baseDegrees] and [jitterDegrees] come from [StormBank]; [stormIntensity]
+  /// is the ramped thunderstorm strength in the range 0..1.
+  static double stormBankDegrees({
+    required double baseDegrees,
+    required double jitterDegrees,
+    required double stormIntensity,
+  }) {
+    return (baseDegrees + jitterDegrees) * stormIntensity.clamp(0.0, 1.0);
+  }
+
+  /// Target bank angle in degrees from crew balance plus wind and storm,
+  /// clamped to [maxBankDegrees]. More people on the left bank left; more on
+  /// the right bank right.
   static double bankAngle({
     required int counterLeft,
     required int counterRight,
     required double bankPerPerson,
     required double windBankDegrees,
+    double stormBankDegrees = 0,
   }) {
     final crew = (counterRight - counterLeft) * bankPerPerson;
-    return (crew + windBankDegrees).clamp(-maxBankDegrees, maxBankDegrees);
+    return (crew + windBankDegrees + stormBankDegrees)
+        .clamp(-maxBankDegrees, maxBankDegrees);
   }
 
   /// Eases [current] toward [target], reaching ~90% after [timeToTarget]

@@ -120,6 +120,67 @@ void main() {
         -PhysicsEngine.maxBankDegrees,
       );
     });
+
+    test('adds storm and wind additively with balanced crew', () {
+      expect(
+        PhysicsEngine.bankAngle(
+          counterLeft: 4,
+          counterRight: 4,
+          bankPerPerson: 2,
+          windBankDegrees: -2,
+          stormBankDegrees: 4,
+        ),
+        2,
+      );
+    });
+
+    test('clamps crew plus wind plus storm to maxBankDegrees', () {
+      expect(
+        PhysicsEngine.bankAngle(
+          counterLeft: 0,
+          counterRight: 10,
+          bankPerPerson: 8,
+          windBankDegrees: 15,
+          stormBankDegrees: 5,
+        ),
+        PhysicsEngine.maxBankDegrees,
+      );
+    });
+  });
+
+  group('stormBankDegrees', () {
+    test('is zero at zero storm intensity', () {
+      expect(
+        PhysicsEngine.stormBankDegrees(
+          baseDegrees: 4,
+          jitterDegrees: 0.3,
+          stormIntensity: 0,
+        ),
+        0,
+      );
+    });
+
+    test('scales base plus jitter at full intensity', () {
+      expect(
+        PhysicsEngine.stormBankDegrees(
+          baseDegrees: 4,
+          jitterDegrees: 0.3,
+          stormIntensity: 1,
+        ),
+        closeTo(4.3, 1e-9),
+      );
+    });
+
+    test('scales linearly with partial intensity', () {
+      expect(
+        PhysicsEngine.stormBankDegrees(
+          baseDegrees: 4,
+          jitterDegrees: 0,
+          stormIntensity: 0.5,
+        ),
+        2,
+      );
+    });
   });
 
   group('approach', () {

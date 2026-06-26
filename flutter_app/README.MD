@@ -85,14 +85,17 @@ The island is drawn heading-up: centered when it is dead ahead, sliding left or 
 ### Bank angle
 
 ```
-windEffect = windDirection * (windStrength / 100) * 15
-crewBank   = (counterRight - counterLeft) * bankPerPerson
-bankAngle  = clamp(crewBank + windEffect, -90, 90)
+windEffect  = windDirection * (windStrength / 100) * 15
+stormEffect = (randomBase[-5..5] + randomJitter[base±0.5]) * stormIntensity
+crewBank    = (counterRight - counterLeft) * bankPerPerson
+bankAngle   = clamp(crewBank + windEffect + stormEffect, -90, 90)
 ```
 
 `bankPerPerson` defaults to 2° and is adjustable on the Controller (0.5–8° in 0.5° steps) so small and large crews can tune turn sensitivity.
 
 The displayed bank angle is interpolated smoothly each frame and drives both the artificial horizon and the navigation turn rate.
+
+Storm bank timers (10 s base roll, 1 s jitter roll) run only while ramped thunderstorm intensity is above zero; they pause when intensity returns to zero.
 
 ## Weather
 
@@ -102,7 +105,7 @@ but only take effect once the Emergency phase begins.
 | Effect          | Behaviour at full intensity                                      |
 | --------------- | --------------------------------------------------------------- |
 | Wind left/right | Bank bias of `±(windStrength / 100) * 15°`                       |
-| Thunderstorm    | +10 m/s extra altitude loss; flicker + screen shake             |
+| Thunderstorm    | +10 m/s extra altitude loss; random bank bias up to ±5° (±0.5° jitter); flicker + screen shake |
 
 Wind strength is set in discrete steps: light breeze (25), moderate (50), strong (75), severe storm (100).
 
@@ -149,7 +152,7 @@ flutter_app/
     main.dart           # app entry: load .env, init Supabase, routing
     models/             # game_phase, game_state, weather_inputs, broadcast_message
     services/           # supabase_service, room_code_generator, audio_service
-    engine/             # physics_engine, weather_ramp, bank_interpolator
+    engine/             # physics_engine, weather_ramp, bank_interpolator, storm_bank
     screens/            # home, cockpit, controller, success
     widgets/            # artificial_horizon, neon_display, phase_scenery
   assets/

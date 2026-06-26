@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../engine/bank_interpolator.dart';
 import '../engine/navigation_engine.dart';
 import '../engine/physics_engine.dart';
+import '../engine/storm_bank.dart';
 import '../engine/weather_ramp.dart';
 import 'broadcast_message.dart';
 import 'game_phase.dart';
@@ -48,6 +49,7 @@ class GameState extends ChangeNotifier {
   final WeatherRamp _stormRamp = WeatherRamp(timeToTarget: 12.0);
   final WeatherRamp _windRamp = WeatherRamp(timeToTarget: 8.0);
   final BankInterpolator _bank = BankInterpolator();
+  final StormBank _stormBank = StormBank();
 
   int _peakLeft = 0;
   int _peakRight = 0;
@@ -100,6 +102,12 @@ class GameState extends ChangeNotifier {
   /// Advances the simulation by [dt] seconds. Call once per frame.
   void advance(double dt) {
     _updateRamps(dt);
+    final stormActive = _phase == GamePhase.emergency &&
+        _weather.thunderstorm &&
+        _stormRamp.value > 0;
+    if (stormActive) {
+      _stormBank.advance(dt, _random);
+    }
     _bank.update(target: _targetBankAngle, dt: dt);
 
     if (_phase == GamePhase.cruise) {
@@ -131,11 +139,17 @@ class GameState extends ChangeNotifier {
       windDirection: _weather.windDirection,
       windFactor: windFactor,
     );
+    final stormBank = PhysicsEngine.stormBankDegrees(
+      baseDegrees: _stormBank.base,
+      jitterDegrees: _stormBank.jitter,
+      stormIntensity: _stormRamp.value,
+    );
     return PhysicsEngine.bankAngle(
       counterLeft: _counterLeft,
       counterRight: _counterRight,
       bankPerPerson: _bankPerPerson,
       windBankDegrees: windBank,
+      stormBankDegrees: stormBank,
     );
   }
 
@@ -165,6 +179,7 @@ class GameState extends ChangeNotifier {
   /// away and resets the plane to the origin heading north. Called when the
   /// emergency landing begins so each run faces a different direction.
   void _initNavigation() {
+    _stormBank.reset();
     final bearing = _random.nextDouble() * 2 * math.pi;
     _island = NavigationEngine.islandFromBearing(
       bearingRad: bearing,
@@ -248,6 +263,7 @@ class GameState extends ChangeNotifier {
     _stormRamp.reset();
     _windRamp.reset();
     _bank.reset();
+    _stormBank.reset();
     notifyListeners();
   }
 }
