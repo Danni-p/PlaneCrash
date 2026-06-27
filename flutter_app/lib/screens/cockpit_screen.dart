@@ -11,6 +11,7 @@ import '../l10n/app_localizations.dart';
 import '../models/broadcast_message.dart';
 import '../models/game_phase.dart';
 import '../models/game_state.dart';
+import '../models/weather_inputs.dart';
 import '../services/audio_service.dart';
 import '../services/room_code_generator.dart';
 import '../services/supabase_service.dart';
@@ -41,15 +42,15 @@ class _CockpitScreenState extends State<CockpitScreen>
   late final String _roomCode;
   late final Ticker _ticker;
   RoomConnection? _room;
-  AppLocalizations? _l10n;
 
   bool _realtimeReady = false;
   String? _realtimeError;
 
   Duration _lastTick = Duration.zero;
   GamePhase _lastPhase = GamePhase.waiting;
+  WeatherInputs _lastWeather = const WeatherInputs();
   bool _navigated = false;
-  double _lastThunderAt = 0.0;
+  bool _waterImpactPlayed = false;
   double _flicker = 0.0;
 
   static const Duration _controllerHeartbeatInterval = Duration(seconds: 3);
@@ -67,19 +68,13 @@ class _CockpitScreenState extends State<CockpitScreen>
       DeviceOrientation.landscapeRight,
     ]);
     _roomCode = RoomCodeGenerator.generate();
-    _gameState.addListener(_onStateChanged);
+    _gameState.addListener(_onGameStateChanged);
 
     if (SupabaseService.isConfigured) {
       _openRoom();
     }
 
     _ticker = createTicker(_onTick)..start();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _l10n = AppLocalizations.of(context);
   }
 
   Future<void> _openRoom() async {
@@ -197,45 +192,77 @@ class _CockpitScreenState extends State<CockpitScreen>
     _flicker = math.max(0.0, _flicker - dt * 4.0);
     if (intensity > 0.2 && _random.nextDouble() < 0.04 * intensity) {
       _flicker = 0.6 * intensity;
-      final now = _gameState.elapsedSeconds.toDouble();
-      if (now - _lastThunderAt > 3.0) {
-        _lastThunderAt = now;
-        _audio.playThunder();
-      }
     }
   }
 
-  void _onStateChanged() {
+  void _onGameStateChanged() {
     final phase = _gameState.phase;
-    if (phase == _lastPhase) return;
-    final previous = _lastPhase;
-    _lastPhase = phase;
+    final weather = _gameState.weather;
+    final phaseChanged = phase != _lastPhase;
 
-    switch (phase) {
-      case GamePhase.cruise:
-        _audio.startEngineHum();
-      case GamePhase.malfunction:
-        _runMalfunctionSequence();
-      case GamePhase.finished:
-        _goToSuccess();
-      case GamePhase.waiting:
-        if (previous != GamePhase.waiting) _audio.stopAll();
-      case GamePhase.briefing:
-      case GamePhase.emergency:
-        break;
+    if (phaseChanged) {
+      final previous = _lastPhase;
+      _lastPhase = phase;
+
+      switch (phase) {
+        case GamePhase.cruise:
+          _audio.startCabinNoise();
+        case GamePhase.malfunction:
+          _runMalfunctionSequence();
+        case GamePhase.briefing:
+          _audio.stopDanger();
+          _audio.playWarningSpeech();
+        case GamePhase.emergency:
+          _syncWeatherAudio(force: true);
+        case GamePhase.finished:
+          _handleFinished();
+        case GamePhase.waiting:
+          if (previous != GamePhase.waiting) {
+            _audio.stopAll();
+            _waterImpactPlayed = false;
+            _lastWeather = const WeatherInputs();
+          }
+      }
+
+      if (previous == GamePhase.emergency && phase != GamePhase.emergency) {
+        _audio.setThunderstormActive(false);
+        _audio.setWindActive(false);
+        _lastWeather = weather;
+      }
+    } else if (phase == GamePhase.emergency) {
+      _syncWeatherAudio();
     }
+  }
+
+  void _syncWeatherAudio({bool force = false}) {
+    final weather = _gameState.weather;
+    if (!force &&
+        weather.thunderstorm == _lastWeather.thunderstorm &&
+        weather.windLeft == _lastWeather.windLeft &&
+        weather.windRight == _lastWeather.windRight) {
+      return;
+    }
+    _lastWeather = weather;
+    _audio.setThunderstormActive(weather.thunderstorm);
+    _audio.setWindActive(weather.windLeft || weather.windRight);
   }
 
   Future<void> _runMalfunctionSequence() async {
-    await _audio.playAlarm();
-    final voice = _l10n?.malfunctionVoice;
-    if (voice != null) {
-      await _audio.speak(voice);
-    }
+    await _audio.startDanger();
     await Future.delayed(GameState.malfunctionDuration);
     if (mounted && _gameState.phase == GamePhase.malfunction) {
       _gameState.enterBriefing();
     }
+  }
+
+  Future<void> _handleFinished() async {
+    if (_navigated) return;
+    if (!_waterImpactPlayed && _gameState.distanceToIsland > 0) {
+      _waterImpactPlayed = true;
+      await _audio.playWaterImpact();
+      await Future.delayed(const Duration(milliseconds: 300));
+    }
+    _goToSuccess();
   }
 
   void _goToSuccess() {
@@ -268,7 +295,7 @@ class _CockpitScreenState extends State<CockpitScreen>
   @override
   void dispose() {
     _ticker.dispose();
-    _gameState.removeListener(_onStateChanged);
+    _gameState.removeListener(_onGameStateChanged);
     _gameState.dispose();
     _room?.disconnect();
     _controllerWatchdog?.cancel();

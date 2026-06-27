@@ -64,7 +64,7 @@ void main() {
     });
 
     test('increases monotonically as distance shrinks', () {
-      final distances = [10000.0, 5000.0, 2000.0, 1000.0, 500.0, 100.0];
+      final distances = [13500.0, 5000.0, 2000.0, 1000.0, 500.0, 100.0];
       var previous = -1.0;
       for (final distance in distances) {
         final progress = IslandViewportLayout.visualApproachFromDistance(

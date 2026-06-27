@@ -1,2 +1,2 @@
-# Audio assets (engine hum, alarms, thunder). Drop .mp3/.wav files here.
-# Files referenced by AudioService are optional; playback is skipped if missing.
+# Bundled MP3 cues for the cockpit tablet (see AudioService).
+# cabine-noise.mp3, danger.mp3, warningSpeach.mp3, thunderstorm.mp3, wind.mp3, water-impact.mp3

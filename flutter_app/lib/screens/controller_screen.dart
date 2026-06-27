@@ -16,8 +16,8 @@ import '../services/supabase_service.dart';
 import '../utils/labels.dart';
 
 /// The phone controller: joins a room by code and sends partial updates. Cabin
-/// controls (counters, approach speed) activate during the emergency phase;
-/// weather can be pre-set earlier. Any controller can advance the flight phases.
+/// controls (counters, approach speed) can be pre-set locally; weather toggles
+/// activate only during the emergency phase. Any controller can advance flight phases.
 class ControllerScreen extends StatefulWidget {
   const ControllerScreen({super.key});
 
@@ -507,6 +507,7 @@ class _ControllerScreenState extends State<ControllerScreen> {
   }
 
   Widget _buildWeather(AppLocalizations l10n) {
+    final weatherEnabled = _controlsActive && _isActiveController;
     return _Section(
       title: l10n.controllerWeatherSection,
       child: Column(
@@ -514,17 +515,23 @@ class _ControllerScreenState extends State<ControllerScreen> {
           SwitchListTile(
             title: Text(l10n.weatherThunderstorm),
             value: _weather.thunderstorm,
-            onChanged: (v) => _updateWeather(_weather.copyWith(thunderstorm: v)),
+            onChanged: weatherEnabled
+                ? (v) => _updateWeather(_weather.copyWith(thunderstorm: v))
+                : null,
           ),
           SwitchListTile(
             title: Text(l10n.weatherWindLeft),
             value: _weather.windLeft,
-            onChanged: (v) => _updateWeather(_weather.copyWith(windLeft: v)),
+            onChanged: weatherEnabled
+                ? (v) => _updateWeather(_weather.copyWith(windLeft: v))
+                : null,
           ),
           SwitchListTile(
             title: Text(l10n.weatherWindRight),
             value: _weather.windRight,
-            onChanged: (v) => _updateWeather(_weather.copyWith(windRight: v)),
+            onChanged: weatherEnabled
+                ? (v) => _updateWeather(_weather.copyWith(windRight: v))
+                : null,
           ),
           const SizedBox(height: 8),
           Align(
@@ -539,8 +546,10 @@ class _ControllerScreenState extends State<ControllerScreen> {
               return ChoiceChip(
                 label: Text(Labels.windStrength(l10n, strength)),
                 selected: _weather.windStrength == strength,
-                onSelected: (_) =>
-                    _updateWeather(_weather.copyWith(windStrength: strength)),
+                onSelected: weatherEnabled
+                    ? (_) =>
+                        _updateWeather(_weather.copyWith(windStrength: strength))
+                    : null,
               );
             }).toList(),
           ),

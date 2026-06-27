@@ -38,10 +38,10 @@ Success ◀──(altitude = 0)── Emergency ◀──(Notlandung starten)─
 ```
 
 - **Waiting**: The Cockpit shows the room code and waits for Controllers. No physics runs.
-- **Cruise**: Altitude is stable (5000 m). A distant landmass slowly approaches at a fixed cosmetic speed. Cabin controls are visible but inactive.
-- **Malfunction**: An alarm and a German computer voice announce the emergency. The plane does not sink yet and the target island is not shown.
-- **Briefing**: A static screen while real-world instructors explain the rules. Waits for a Controller to start.
-- **Emergency**: Per-frame physics run, all controls are live, and the plane begins to sink. The island is spawned at a random bearing 10 000 m away and rendered on the horizon. The run ends when altitude reaches 0.
+- **Cruise**: Altitude is stable (17 500 m). A distant landmass slowly approaches at a fixed cosmetic speed. Cabin controls are visible but inactive.
+- **Malfunction**: A looping danger alarm plays for 8 seconds. The plane does not sink yet and the target island is not shown.
+- **Briefing**: A static screen while real-world instructors explain the rules; a German voice-over plays once. Waits for a Controller to start.
+- **Emergency**: Per-frame physics run, all controls are live, and the plane begins to sink. The island is spawned at a random bearing 13 500 m away and rendered on the horizon. The run ends when altitude reaches 0.
 - **Finished**: The success screen shows the distance to the island as the primary score.
 
 Any joined Controller can trigger the phase-advancing buttons.
@@ -65,16 +65,32 @@ More total active players means a slower descent (constants are tunable):
 
 ```
 activeTotal           = counterLeft + counterRight
-altitudeLossPerSecond = max(2.0, 15.0 - activeTotal * 1.3) + stormBonus
+altitudeLossPerSecond = max(5.0, 25.0 - activeTotal * 1.3) + stormBonus
 ```
 
 `stormBonus` is up to +10 m/s, scaled by the ramped thunderstorm intensity.
+
+### Timing design
+
+Constants are tuned so a **straight-line** approach at the default 15 m/s ground speed reaches the
+island in about 15 minutes. Random island bearing and off-course banking mean real runs are often
+longer.
+
+| Crew (straight, no storm) | Sink (m/s) | Time to island | Altitude at island |
+| ------------------------- | ---------- | -------------- | ------------------ |
+| 0                         | 25         | N/A (ground ~11.7 min) | —            |
+| 5                         | 18.5       | ~15 min        | ~850 m             |
+| 10                        | 12         | ~15 min        | ~6 700 m           |
+| 16+                       | 5          | ~15 min        | ~11 000 m          |
+
+With ~5 active crew on a straight heading, the plane should pass over the island with roughly
+850 m of altitude remaining — about three more minutes at minimum sink rate before touchdown.
 
 ### Navigation and distance to island
 
 The plane flies on a 2D map (north-up coordinates) instead of counting a scalar down.
 
-- When the emergency landing starts, the island is placed at a random bearing 10 000 m from the plane. It can be anywhere in the full circle, including behind the plane.
+- When the emergency landing starts, the island is placed at a random bearing 13 500 m from the plane. It can be anywhere in the full circle, including behind the plane.
 - The plane moves at a constant ground speed (the Controller-adjustable approach speed, default 15 m/s) along its current heading. Speed is unaffected by turns.
 - Bank angle is the only thing that turns the plane: `heading += bankAngle * turnRate`. The crew must keep the cabin balanced to fly straight; nothing auto-corrects the heading.
 - `distanceToIsland` is the true straight-line distance, so steering away genuinely increases it and a bad path costs distance.
@@ -103,8 +119,8 @@ Wind gust timers (6 s target roll, 6 s ease) run only while ramped wind intensit
 
 ## Weather
 
-Weather effects are independent toggles and can be combined. They can be pre-set before the emergency
-but only take effect once the Emergency phase begins.
+Weather effects are independent toggles and can be combined. Controller weather toggles are only
+available during the Emergency phase; effects ramp in once activated.
 
 | Effect          | Behaviour at full intensity                                      |
 | --------------- | --------------------------------------------------------------- |
@@ -160,7 +176,7 @@ flutter_app/
     screens/            # home, cockpit, controller, success
     widgets/            # artificial_horizon, neon_display, phase_scenery
   assets/
-    audio/              # engine hum, alarms, thunder (optional)
+    audio/              # cabine-noise, danger, warningSpeach, thunderstorm, wind, water-impact
     images/             # distant land, island sprites (optional)
 ```
 

@@ -22,7 +22,7 @@ import 'weather_inputs.dart';
 class GameState extends ChangeNotifier {
   /// How long the malfunction alarm plays before briefing begins. Shared so the
   /// cockpit and controllers advance from malfunction to briefing in step.
-  static const Duration malfunctionDuration = Duration(seconds: 3);
+  static const Duration malfunctionDuration = Duration(seconds: 8);
 
   /// Seconds for the distant land to visually approach during cruise.
   static const double _cruiseApproachSeconds = 25.0;

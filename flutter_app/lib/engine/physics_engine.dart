@@ -6,10 +6,10 @@ import 'dart:math' as math;
 /// mutable run state lives in `GameState`.
 abstract final class PhysicsEngine {
   /// Starting altitude in metres.
-  static const double initialAltitude = 5000.0;
+  static const double initialAltitude = 17500.0;
 
   /// Distance to the island in metres, set when the malfunction reveals it.
-  static const double initialDistance = 10000.0;
+  static const double initialDistance = 13500.0;
 
   /// Altitude lost per second with zero active crew.
   static const double baseSinkRate = 25.0;
