@@ -754,8 +754,8 @@ class _ControllerScreenState extends State<ControllerScreen> {
           Slider(
             value: _distanceSpeed,
             min: 5,
-            max: 30,
-            divisions: 25,
+            max: 100,
+            divisions: 95,
             label: '${_distanceSpeed.round()}',
             onChanged: _isActiveController ? _changeDistanceSpeed : null,
           ),
