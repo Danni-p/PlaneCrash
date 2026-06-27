@@ -52,9 +52,14 @@ class _ControllerScreenState extends State<ControllerScreen> {
   WeatherInputs _weather = const WeatherInputs();
   double _distanceSpeed = PhysicsEngine.defaultDistanceSpeed;
   double _bankPerPerson = PhysicsEngine.defaultBankPerPerson;
+  int _initialAltitude = PhysicsEngine.defaultRunInitialAltitude.round();
+  bool _altitudeBoostReady = false;
+  Timer? _altitudeBoostTimer;
 
   bool get _controlsActive => _phase == GamePhase.emergency;
   bool get _canSendControlUpdates => _isActiveController && _controlsActive;
+  bool get _canEditInitialAltitude =>
+      _phase != GamePhase.emergency && _phase != GamePhase.finished;
 
   @override
   void initState() {
@@ -69,6 +74,7 @@ class _ControllerScreenState extends State<ControllerScreen> {
   void dispose() {
     _briefingTimer?.cancel();
     _heartbeatTimer?.cancel();
+    _altitudeBoostTimer?.cancel();
     _codeController.dispose();
     _room?.disconnect();
     SystemChrome.setPreferredOrientations(DeviceOrientation.values);
@@ -183,7 +189,10 @@ class _ControllerScreenState extends State<ControllerScreen> {
     _weather = const WeatherInputs();
     _distanceSpeed = PhysicsEngine.defaultDistanceSpeed;
     _bankPerPerson = PhysicsEngine.defaultBankPerPerson;
+    _initialAltitude = PhysicsEngine.defaultRunInitialAltitude.round();
+    _altitudeBoostReady = false;
     _briefingTimer?.cancel();
+    _altitudeBoostTimer?.cancel();
   }
 
   void _onSessionCancelled() {
@@ -225,8 +234,23 @@ class _ControllerScreenState extends State<ControllerScreen> {
     });
 
     if (before != GamePhase.emergency && _phase == GamePhase.emergency) {
+      _startAltitudeBoostDelay();
       _flushAllControls();
     }
+  }
+
+  void _startAltitudeBoostDelay() {
+    _altitudeBoostTimer?.cancel();
+    setState(() => _altitudeBoostReady = false);
+    _altitudeBoostTimer = Timer(
+      Duration(
+        milliseconds:
+            (PhysicsEngine.altitudeCountdownSeconds * 1000).round(),
+      ),
+      () {
+        if (mounted) setState(() => _altitudeBoostReady = true);
+      },
+    );
   }
 
   void _flushAllControls() {
@@ -245,14 +269,43 @@ class _ControllerScreenState extends State<ControllerScreen> {
       SettingsUpdate(
         distanceSpeed: _distanceSpeed,
         bankPerPerson: _bankPerPerson,
+        initialAltitude: _initialAltitude,
         source: _source,
       ),
     );
   }
 
+  Future<void> _sendAltitudeBoost() async {
+    if (!_isSubscribed || !_isActiveController || _room == null) return;
+    if (!_controlsActive || !_altitudeBoostReady) return;
+    HapticFeedback.mediumImpact();
+    await _room!.sendAltitudeBoost(AltitudeBoost(source: _source));
+  }
+
   Future<void> _sendPhaseAction(PhaseAction action) async {
     if (!_isSubscribed || !_isActiveController || _room == null) return;
     HapticFeedback.mediumImpact();
+
+    if (action == PhaseAction.startEmergency) {
+      final settingsResult = await _room!.sendSettingsUpdate(
+        SettingsUpdate(
+          distanceSpeed: _distanceSpeed,
+          bankPerPerson: _bankPerPerson,
+          initialAltitude: _initialAltitude,
+          source: _source,
+        ),
+      );
+      if (!mounted) return;
+      if (settingsResult != BroadcastSendResult.ok) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context)!.controllerSendFailed),
+          ),
+        );
+        return;
+      }
+    }
+
     final result = await _room!.sendPhaseAction(
       PhaseActionMessage(action: action, source: _source),
     );
@@ -308,8 +361,15 @@ class _ControllerScreenState extends State<ControllerScreen> {
     return SettingsUpdate(
       distanceSpeed: distanceSpeed ?? _distanceSpeed,
       bankPerPerson: bankPerPerson ?? _bankPerPerson,
+      initialAltitude: _initialAltitude,
       source: _source,
     );
+  }
+
+  void _changeInitialAltitude(int delta) {
+    setState(() {
+      _initialAltitude = _initialAltitude + delta;
+    });
   }
 
   @override
@@ -427,6 +487,8 @@ class _ControllerScreenState extends State<ControllerScreen> {
         ),
         const SizedBox(height: 16),
         _buildPhaseSection(l10n),
+        const SizedBox(height: 16),
+        _buildInitialAltitude(l10n),
         const SizedBox(height: 24),
         if (!_controlsActive)
           Padding(
@@ -444,7 +506,54 @@ class _ControllerScreenState extends State<ControllerScreen> {
         _buildDistanceSpeed(l10n),
         const SizedBox(height: 24),
         _buildBankPerPerson(l10n),
+        if (_controlsActive) ...[
+          const SizedBox(height: 24),
+          _buildAltitudeBoost(l10n),
+        ],
       ],
+    );
+  }
+
+  Widget _buildInitialAltitude(AppLocalizations l10n) {
+    final enabled = _isActiveController && _canEditInitialAltitude;
+    return _Section(
+      title: l10n.controllerInitialAltitude,
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: enabled ? () => _changeInitialAltitude(-100) : null,
+            icon: const Icon(Icons.remove),
+          ),
+          Expanded(
+            child: Text(
+              '$_initialAltitude ${l10n.unitMeters}',
+              style: Theme.of(context).textTheme.titleLarge,
+              textAlign: TextAlign.center,
+            ),
+          ),
+          IconButton(
+            onPressed: enabled ? () => _changeInitialAltitude(100) : null,
+            icon: const Icon(Icons.add),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAltitudeBoost(AppLocalizations l10n) {
+    final enabled = _isActiveController && _altitudeBoostReady;
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        onPressed: enabled ? _sendAltitudeBoost : null,
+        icon: const Icon(Icons.fitness_center),
+        label: Text(l10n.controllerAltitudeBoost),
+        style: FilledButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          backgroundColor: const Color(0xFF39FF14),
+          foregroundColor: Colors.black,
+        ),
+      ),
     );
   }
 

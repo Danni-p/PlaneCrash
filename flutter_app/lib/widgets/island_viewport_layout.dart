@@ -3,8 +3,6 @@ import 'dart:ui';
 
 import 'package:flutter/animation.dart';
 
-import '../engine/physics_engine.dart';
-
 /// Where the island distance label is anchored relative to the scenery.
 enum IslandViewportMode {
   onIsland,
@@ -54,9 +52,12 @@ abstract final class IslandViewportLayout {
     return ((inv - 1) / (invMin - 1)).clamp(0.0, 1.0);
   }
 
-  static double horizonFractionForAltitude(double altitude) {
-    final t =
-        (1 - altitude / PhysicsEngine.initialAltitude).clamp(0.0, 1.0);
+  static double horizonFractionForAltitude(
+    double altitude, {
+    required double referenceAltitude,
+  }) {
+    if (referenceAltitude <= 0) return horizonFractionAtLowAltitude;
+    final t = (1 - altitude / referenceAltitude).clamp(0.0, 1.0);
     final eased = Curves.easeInOut.transform(t);
     return lerpDouble(
           horizonFractionAtHighAltitude,
@@ -66,8 +67,16 @@ abstract final class IslandViewportLayout {
         horizonFractionAtHighAltitude;
   }
 
-  static double horizonYFor(Size size, {required double altitude}) =>
-      size.height * horizonFractionForAltitude(altitude);
+  static double horizonYFor(
+    Size size, {
+    required double altitude,
+    required double referenceAltitude,
+  }) =>
+      size.height *
+      horizonFractionForAltitude(
+        altitude,
+        referenceAltitude: referenceAltitude,
+      );
 
   static IslandLandMetrics landMetrics({
     required Size size,
@@ -113,9 +122,14 @@ abstract final class IslandViewportLayout {
     required double relativeBearing,
     required double islandApproach,
     required double altitude,
+    required double referenceAltitude,
     double scale = 1.0,
   }) {
-    final horizonY = horizonYFor(size, altitude: altitude);
+    final horizonY = horizonYFor(
+      size,
+      altitude: altitude,
+      referenceAltitude: referenceAltitude,
+    );
 
     if (isOffScreen(relativeBearing)) {
       final toRight = relativeBearing > 0;

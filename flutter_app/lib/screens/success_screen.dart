@@ -15,6 +15,7 @@ class SuccessScreen extends StatefulWidget {
     required this.peakRight,
     required this.weatherAtEnd,
     required this.durationSeconds,
+    required this.altitudeBoostTotal,
   });
 
   final int distanceToIsland;
@@ -22,6 +23,7 @@ class SuccessScreen extends StatefulWidget {
   final int peakRight;
   final WeatherInputs weatherAtEnd;
   final int durationSeconds;
+  final int altitudeBoostTotal;
 
   @override
   State<SuccessScreen> createState() => _SuccessScreenState();
@@ -84,6 +86,10 @@ class _SuccessScreenState extends State<SuccessScreen> {
                     label: l10n.successPeakCrew,
                     value: '${widget.peakLeft + widget.peakRight} '
                         '(${widget.peakLeft} / ${widget.peakRight})',
+                  ),
+                  _StatRow(
+                    label: l10n.successAltitudeBoost,
+                    value: l10n.successAltitudeBoostValue(widget.altitudeBoostTotal),
                   ),
                   _StatRow(
                     label: l10n.successWeatherAtEnd,

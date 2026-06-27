@@ -5,8 +5,23 @@ import 'dart:math' as math;
 /// Everything here is stateless so it can be unit tested in isolation; the
 /// mutable run state lives in `GameState`.
 abstract final class PhysicsEngine {
-  /// Starting altitude in metres.
-  static const double initialAltitude = 17500.0;
+  /// Cruise/briefing display altitude in metres (countdown starts here on Notlandung).
+  static const double displayCruiseAltitude = 17500.0;
+
+  /// @deprecated Use [displayCruiseAltitude].
+  static const double initialAltitude = displayCruiseAltitude;
+
+  /// Default emergency start altitude in metres (configurable on the controller).
+  static const double defaultRunInitialAltitude = 5000.0;
+
+  /// Seconds to animate altitude from [displayCruiseAltitude] down to run initial.
+  static const double altitudeCountdownSeconds = 3.0;
+
+  /// Altitude gained per rescue-mission button press.
+  static const double altitudeBoostAmount = 100.0;
+
+  /// Maximum altitude above run initial reachable via rescue boosts.
+  static const double maxBoostAboveInitial = 500.0;
 
   /// Distance to the island in metres, set when the malfunction reveals it.
   static const double initialDistance = 13500.0;

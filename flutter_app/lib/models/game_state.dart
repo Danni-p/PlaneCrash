@@ -35,7 +35,7 @@ class GameState extends ChangeNotifier {
       math.Point<double>(0, PhysicsEngine.initialDistance);
 
   GamePhase _phase = GamePhase.waiting;
-  double _altitude = PhysicsEngine.initialAltitude;
+  double _altitude = PhysicsEngine.displayCruiseAltitude;
   double _distanceSpeed = PhysicsEngine.defaultDistanceSpeed;
   double _bankPerPerson = PhysicsEngine.defaultBankPerPerson;
   int _counterLeft = 0;
@@ -57,10 +57,37 @@ class GameState extends ChangeNotifier {
   int _peakRight = 0;
   double _elapsedSeconds = 0.0;
 
+  double _runInitialAltitude = PhysicsEngine.defaultRunInitialAltitude;
+  bool _initialAltitudeLocked = false;
+  double _altitudeCountdownElapsed = 0.0;
+  int _altitudeBoostTotal = 0;
+
   // --- Public read-only state ---
 
   GamePhase get phase => _phase;
   double get altitude => _altitude;
+
+  /// Configured emergency start altitude for this run (metres).
+  double get runInitialAltitude => _runInitialAltitude;
+
+  /// Maximum reachable altitude: run initial plus rescue boost headroom.
+  double get maxAltitude =>
+      _runInitialAltitude + PhysicsEngine.maxBoostAboveInitial;
+
+  /// Total metres gained via rescue-mission boosts this run.
+  int get altitudeBoostTotal => _altitudeBoostTotal;
+
+  /// True during the 3 s intro animation from cruise altitude to run initial.
+  bool get isAltitudeCountdownActive =>
+      _phase == GamePhase.emergency &&
+      _altitudeCountdownElapsed < PhysicsEngine.altitudeCountdownSeconds;
+
+  /// Reference altitude for horizon visuals: cruise display before emergency,
+  /// run initial once the emergency landing has begun.
+  double get horizonReferenceAltitude =>
+      _phase == GamePhase.emergency || _phase == GamePhase.finished
+          ? _runInitialAltitude
+          : PhysicsEngine.displayCruiseAltitude;
 
   /// Straight-line distance to the island in metres, derived from the plane's
   /// current map position. Grows when the plane steers away from the island.
@@ -108,12 +135,14 @@ class GameState extends ChangeNotifier {
   void advance(double dt) {
     _updateRamps(dt);
     final stormActive = _phase == GamePhase.emergency &&
+        !isAltitudeCountdownActive &&
         _weather.thunderstorm &&
         _stormRamp.value > 0;
     if (stormActive) {
       _stormBank.advance(dt, _random);
     }
     final windActive = _phase == GamePhase.emergency &&
+        !isAltitudeCountdownActive &&
         (_weather.windLeft || _weather.windRight) &&
         _windRamp.value > 0;
     if (windActive) {
@@ -127,14 +156,35 @@ class GameState extends ChangeNotifier {
     }
 
     if (_phase == GamePhase.emergency) {
-      _stepEmergency(dt);
+      if (isAltitudeCountdownActive) {
+        _advanceAltitudeCountdown(dt);
+      } else {
+        _stepEmergency(dt);
+      }
     }
 
     notifyListeners();
   }
 
+  void _advanceAltitudeCountdown(double dt) {
+    _altitudeCountdownElapsed += dt;
+    final duration = PhysicsEngine.altitudeCountdownSeconds;
+    final t = (_altitudeCountdownElapsed / duration).clamp(0.0, 1.0);
+    _altitude = _lerp(
+      PhysicsEngine.displayCruiseAltitude,
+      _runInitialAltitude,
+      t,
+    );
+    if (_altitudeCountdownElapsed >= duration) {
+      _altitude = _runInitialAltitude;
+      _initialAltitudeLocked = true;
+    }
+  }
+
+  static double _lerp(double from, double to, double t) => from + (to - from) * t;
+
   void _updateRamps(double dt) {
-    final inEmergency = _phase == GamePhase.emergency;
+    final inEmergency = _phase == GamePhase.emergency && !isAltitudeCountdownActive;
     _stormRamp.update(
       target: inEmergency && _weather.thunderstorm ? 1.0 : 0.0,
       dt: dt,
@@ -144,7 +194,7 @@ class GameState extends ChangeNotifier {
   }
 
   double get _targetBankAngle {
-    if (_phase != GamePhase.emergency) return 0.0;
+    if (_phase != GamePhase.emergency || isAltitudeCountdownActive) return 0.0;
     final maxFactor =
         (_weather.windStrength.value / 100.0) * _windRamp.value;
     final windFactor = maxFactor * _windGust.value;
@@ -202,10 +252,16 @@ class GameState extends ChangeNotifier {
     _nav = _initialNav;
   }
 
+  void _startAltitudeCountdown() {
+    _altitudeCountdownElapsed = 0.0;
+    _initialAltitudeLocked = false;
+    _altitude = PhysicsEngine.displayCruiseAltitude;
+  }
+
   // --- Applying broadcast updates from controllers ---
 
   void applyCounterUpdate(CounterUpdate update) {
-    if (_phase != GamePhase.emergency) return;
+    if (_phase != GamePhase.emergency || isAltitudeCountdownActive) return;
     if (update.counterLeft != null) {
       _counterLeft = math.max(0, update.counterLeft!);
     }
@@ -223,10 +279,38 @@ class GameState extends ChangeNotifier {
   }
 
   void applySettingsUpdate(SettingsUpdate update) {
+    if (update.initialAltitude != null && !_initialAltitudeLocked) {
+      _runInitialAltitude = update.initialAltitude!.toDouble();
+      if (isAltitudeCountdownActive) {
+        final duration = PhysicsEngine.altitudeCountdownSeconds;
+        final t =
+            (_altitudeCountdownElapsed / duration).clamp(0.0, 1.0);
+        _altitude = _lerp(
+          PhysicsEngine.displayCruiseAltitude,
+          _runInitialAltitude,
+          t,
+        );
+      }
+    }
     if (_phase != GamePhase.emergency) return;
     _distanceSpeed = update.distanceSpeed;
     _bankPerPerson = update.bankPerPerson;
     notifyListeners();
+  }
+
+  void applyAltitudeBoost(AltitudeBoost update) {
+    if (_phase != GamePhase.emergency || isAltitudeCountdownActive) return;
+    final cap = maxAltitude;
+    final boosted = math.min(
+      cap,
+      _altitude + PhysicsEngine.altitudeBoostAmount,
+    );
+    final gained = (boosted - _altitude).round();
+    if (gained > 0) {
+      _altitude = boosted;
+      _altitudeBoostTotal += gained;
+      notifyListeners();
+    }
   }
 
   /// Applies a controller's phase request, ignoring invalid transitions.
@@ -242,6 +326,7 @@ class GameState extends ChangeNotifier {
         if (_phase == GamePhase.briefing) {
           _phase = GamePhase.emergency;
           _initNavigation();
+          _startAltitudeCountdown();
         }
     }
     if (_phase != before) {
@@ -262,7 +347,7 @@ class GameState extends ChangeNotifier {
   /// Resets everything back to the waiting state (cockpit session cancel).
   void resetToWaiting() {
     _phase = GamePhase.waiting;
-    _altitude = PhysicsEngine.initialAltitude;
+    _altitude = PhysicsEngine.displayCruiseAltitude;
     _distanceSpeed = PhysicsEngine.defaultDistanceSpeed;
     _bankPerPerson = PhysicsEngine.defaultBankPerPerson;
     _counterLeft = 0;
@@ -274,6 +359,10 @@ class GameState extends ChangeNotifier {
     _peakLeft = 0;
     _peakRight = 0;
     _elapsedSeconds = 0.0;
+    _runInitialAltitude = PhysicsEngine.defaultRunInitialAltitude;
+    _initialAltitudeLocked = false;
+    _altitudeCountdownElapsed = 0.0;
+    _altitudeBoostTotal = 0;
     _stormRamp.reset();
     _windRamp.reset();
     _bank.reset();

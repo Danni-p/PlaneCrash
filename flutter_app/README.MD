@@ -41,7 +41,7 @@ Success ◀──(altitude = 0)── Emergency ◀──(Notlandung starten)─
 - **Cruise**: Altitude is stable (17 500 m). A distant landmass slowly approaches at a fixed cosmetic speed. Cabin controls are visible but inactive.
 - **Malfunction**: A looping danger alarm plays for 8 seconds. The plane does not sink yet and the target island is not shown.
 - **Briefing**: A static screen while real-world instructors explain the rules; a German voice-over plays once. Waits for a Controller to start.
-- **Emergency**: Per-frame physics run, all controls are live, and the plane begins to sink. The island is spawned at a random bearing 13 500 m away and rendered on the horizon. The run ends when altitude reaches 0.
+- **Emergency**: Per-frame physics run, all controls are live, and the plane begins to sink. On start the cockpit animates altitude from 17 500 m down to the configured emergency start altitude over 3 seconds. The island is spawned at a random bearing 13 500 m away and rendered on the horizon. The run ends when altitude reaches 0.
 - **Finished**: The success screen shows the distance to the island as the primary score.
 
 Any joined Controller can trigger the phase-advancing buttons.
@@ -59,6 +59,22 @@ There is **no countdown timer**. Altitude is the only time pressure. The run is 
 phase is Emergency and `currentAltitude > 0`. When altitude reaches 0 the game ends and the success
 screen is shown.
 
+#### Configurable start altitude
+
+Before Notlandung the Controller sets **emergency start altitude** (default **5000 m**, step 100 m).
+Cruise and briefing still display **17 500 m**. When Notlandung begins the cockpit counts down over
+**3 seconds** from 17 500 m to the configured value, then normal sink physics start. The field locks
+once the emergency landing is active.
+
+#### Rescue missions (+100 m)
+
+During emergency the Controller can tap **+100 m Rettungsmission** after a player completes a
+real-world checkpoint task (honor system). Each tap adds 100 m, capped at **start altitude + 500 m**.
+The success screen shows total metres gained from rescue missions.
+
+Horizon visuals normalize against the run's start altitude so 5000 m at emergency start looks like
+the previous high-cruise view at 17 500 m.
+
 ### Sink rate
 
 More total active players means a slower descent (constants are tunable):
@@ -72,9 +88,13 @@ altitudeLossPerSecond = max(5.0, 25.0 - activeTotal * 1.3) + stormBonus
 
 ### Timing design
 
-Constants are tuned so a **straight-line** approach at the default 15 m/s ground speed reaches the
-island in about 15 minutes. Random island bearing and off-course banking mean real runs are often
-longer.
+With the default **5000 m** start altitude, crews typically need frequent rescue missions in hard
+runs and roughly one per minute in easier setups. Constants for ground approach are tuned so a
+**straight-line** path at the default 15 m/s ground speed reaches the island in about 15 minutes.
+Random island bearing and off-course banking mean real runs are often longer.
+
+The table below assumes the legacy **17 500 m** start (for reference); with 5000 m default, time
+before touchdown is much shorter unless rescue boosts are used.
 
 | Crew (straight, no storm) | Sink (m/s) | Time to island | Altitude at island |
 | ------------------------- | ---------- | -------------- | ------------------ |
@@ -146,7 +166,8 @@ Broadcast event types:
 
 - `counter_update` — left and/or right counter
 - `weather_update` — toggles and wind strength
-- `settings_update` — approach speed and bank-per-person sensitivity
+- `settings_update` — approach speed, bank-per-person sensitivity, and initial altitude (on flush)
+- `altitude_boost` — +100 m rescue mission (honor system)
 - `phase_action` — `start_cruise`, `engine_malfunction`, `start_emergency`
 - `session_cancel` — Cockpit ended the session
 

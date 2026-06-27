@@ -49,6 +49,8 @@
   "windStrengthStorm": "Schwerer Sturm",
   "controllerDistanceSpeed": "Annäherungsgeschwindigkeit",
   "controllerBankPerPerson": "Rollwinkel pro Person",
+  "controllerInitialAltitude": "Starthöhe Notlandung",
+  "controllerAltitudeBoost": "+100 m Rettungsmission",
   "controllerPhaseSection": "Flugphasen",
   "phaseButtonStartFlight": "Flug starten",
   "phaseButtonEngineFailure": "Triebwerksausfall",
@@ -62,6 +64,11 @@
   },
   "successSwimHint": "Die Crew muss den Rest im nächsten Spiel schwimmen.",
   "successPeakCrew": "Maximale aktive Crew",
+  "successAltitudeBoost": "Rettungsmissionen",
+  "successAltitudeBoostValue": "+{meters} m",
+  "@successAltitudeBoostValue": {
+    "placeholders": { "meters": { "type": "int" } }
+  },
   "successWeatherAtEnd": "Wetter bei Landung",
   "successDuration": "Flugdauer",
   "successDurationValue": "{seconds} s",

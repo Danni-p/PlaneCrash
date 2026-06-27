@@ -95,6 +95,10 @@ class _CockpitScreenState extends State<CockpitScreen>
       if (!_isFromActiveController(update.source)) return;
       _gameState.applySettingsUpdate(update);
     });
+    room.onAltitudeBoost((boost) {
+      if (!_isFromActiveController(boost.source)) return;
+      _gameState.applyAltitudeBoost(boost);
+    });
     room.onPhaseAction((message) {
       if (!_isFromActiveController(message.source)) return;
       debugPrint('Cockpit received phase action: ${message.action}');
@@ -278,6 +282,7 @@ class _CockpitScreenState extends State<CockpitScreen>
           peakRight: stats.peakRight,
           weatherAtEnd: stats.weather,
           durationSeconds: stats.elapsedSeconds,
+          altitudeBoostTotal: stats.altitudeBoostTotal,
         ),
       ),
     );
@@ -332,6 +337,7 @@ class _CockpitScreenState extends State<CockpitScreen>
                 relativeBearing: state.relativeBearing,
                 stormIntensity: state.stormIntensity,
                 altitude: state.altitude,
+                horizonReferenceAltitude: state.horizonReferenceAltitude,
               ),
               if (state.phase == GamePhase.emergency)
                 IslandDistanceOverlay(
@@ -339,6 +345,7 @@ class _CockpitScreenState extends State<CockpitScreen>
                   relativeBearing: state.relativeBearing,
                   islandApproach: islandApproach,
                   altitude: state.altitude,
+                  horizonReferenceAltitude: state.horizonReferenceAltitude,
                   unit: l10n.unitMeters,
                 ),
               Transform.translate(

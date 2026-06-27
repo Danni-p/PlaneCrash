@@ -49,6 +49,8 @@
   "windStrengthStorm": "Severe storm",
   "controllerDistanceSpeed": "Approach speed",
   "controllerBankPerPerson": "Bank per person",
+  "controllerInitialAltitude": "Emergency start altitude",
+  "controllerAltitudeBoost": "+100 m Rescue mission",
   "controllerPhaseSection": "Flight phases",
   "phaseButtonStartFlight": "Start flight",
   "phaseButtonEngineFailure": "Engine failure",
@@ -62,6 +64,11 @@
   },
   "successSwimHint": "The crew has to swim the rest in the next game.",
   "successPeakCrew": "Peak active crew",
+  "successAltitudeBoost": "Rescue missions",
+  "successAltitudeBoostValue": "+{meters} m",
+  "@successAltitudeBoostValue": {
+    "placeholders": { "meters": { "type": "int" } }
+  },
   "successWeatherAtEnd": "Weather at landing",
   "successDuration": "Flight duration",
   "successDurationValue": "{seconds} s",

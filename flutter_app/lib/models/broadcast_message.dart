@@ -7,6 +7,7 @@ abstract final class BroadcastEvents {
   static const counterUpdate = 'counter_update';
   static const weatherUpdate = 'weather_update';
   static const settingsUpdate = 'settings_update';
+  static const altitudeBoost = 'altitude_boost';
   static const phaseAction = 'phase_action';
   static const sessionCancel = 'session_cancel';
   static const controllerClaimRequest = 'controller_claim_request';
@@ -59,21 +60,26 @@ class WeatherUpdate {
   }
 }
 
-/// An update to approach speed and bank sensitivity during the emergency phase.
+/// An update to approach speed, bank sensitivity, and optional run initial altitude.
 class SettingsUpdate {
   const SettingsUpdate({
     required this.distanceSpeed,
     required this.bankPerPerson,
     required this.source,
+    this.initialAltitude,
   });
 
   final double distanceSpeed;
   final double bankPerPerson;
   final String source;
 
+  /// Emergency start altitude in metres; applied once when Notlandung begins.
+  final int? initialAltitude;
+
   Map<String, dynamic> toJson() => {
         'distanceSpeed': distanceSpeed,
         'bankPerPerson': bankPerPerson,
+        if (initialAltitude != null) 'initialAltitude': initialAltitude,
         'source': source,
       };
 
@@ -83,6 +89,22 @@ class SettingsUpdate {
           PhysicsEngine.defaultDistanceSpeed,
       bankPerPerson: (json['bankPerPerson'] as num?)?.toDouble() ??
           PhysicsEngine.defaultBankPerPerson,
+      initialAltitude: (json['initialAltitude'] as num?)?.toInt(),
+      source: json['source'] as String? ?? 'unknown',
+    );
+  }
+}
+
+/// Rescue mission completed: cockpit adds [PhysicsEngine.altitudeBoostAmount].
+class AltitudeBoost {
+  const AltitudeBoost({required this.source});
+
+  final String source;
+
+  Map<String, dynamic> toJson() => {'source': source};
+
+  factory AltitudeBoost.fromJson(Map<String, dynamic> json) {
+    return AltitudeBoost(
       source: json['source'] as String? ?? 'unknown',
     );
   }

@@ -149,6 +149,18 @@ class RoomConnection {
     );
   }
 
+  void onAltitudeBoost(void Function(AltitudeBoost boost) callback) {
+    _channel.onBroadcast(
+      event: BroadcastEvents.altitudeBoost,
+      callback: (raw) => _dispatch(
+        event: BroadcastEvents.altitudeBoost,
+        raw: raw,
+        parse: AltitudeBoost.fromJson,
+        deliver: callback,
+      ),
+    );
+  }
+
   void onPhaseAction(void Function(PhaseActionMessage message) callback) {
     _channel.onBroadcast(
       event: BroadcastEvents.phaseAction,
@@ -254,6 +266,9 @@ class RoomConnection {
 
   Future<BroadcastSendResult> sendSettingsUpdate(SettingsUpdate update) =>
       _send(BroadcastEvents.settingsUpdate, update.toJson());
+
+  Future<BroadcastSendResult> sendAltitudeBoost(AltitudeBoost boost) =>
+      _send(BroadcastEvents.altitudeBoost, boost.toJson());
 
   Future<BroadcastSendResult> sendPhaseAction(PhaseActionMessage message) =>
       _send(BroadcastEvents.phaseAction, message.toJson());

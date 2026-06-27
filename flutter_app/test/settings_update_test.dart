@@ -25,5 +25,16 @@ void main() {
       expect(parsed.bankPerPerson, 3.5);
       expect(parsed.source, 'ctrl-test');
     });
+
+    test('round-trips initialAltitude', () {
+      const update = SettingsUpdate(
+        distanceSpeed: 15,
+        bankPerPerson: 2,
+        initialAltitude: 5000,
+        source: 'ctrl-test',
+      );
+      final parsed = SettingsUpdate.fromJson(update.toJson());
+      expect(parsed.initialAltitude, 5000);
+    });
   });
 }

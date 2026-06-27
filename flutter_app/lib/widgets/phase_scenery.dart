@@ -18,6 +18,7 @@ class PhaseScenery extends StatelessWidget {
     required this.relativeBearing,
     required this.stormIntensity,
     required this.altitude,
+    required this.horizonReferenceAltitude,
   });
 
   final GamePhase phase;
@@ -38,6 +39,9 @@ class PhaseScenery extends StatelessWidget {
   /// Current altitude in metres; drives the scenery horizon position.
   final double altitude;
 
+  /// Altitude that maps to the high cruise horizon (run initial during emergency).
+  final double horizonReferenceAltitude;
+
   @override
   Widget build(BuildContext context) {
     return Positioned.fill(
@@ -49,6 +53,7 @@ class PhaseScenery extends StatelessWidget {
           relativeBearing: relativeBearing,
           stormIntensity: stormIntensity,
           altitude: altitude,
+          horizonReferenceAltitude: horizonReferenceAltitude,
         ),
       ),
     );
@@ -63,6 +68,7 @@ class _SceneryPainter extends CustomPainter {
     required this.relativeBearing,
     required this.stormIntensity,
     required this.altitude,
+    required this.horizonReferenceAltitude,
   });
 
   final GamePhase phase;
@@ -71,10 +77,15 @@ class _SceneryPainter extends CustomPainter {
   final double relativeBearing;
   final double stormIntensity;
   final double altitude;
+  final double horizonReferenceAltitude;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final horizonY = IslandViewportLayout.horizonYFor(size, altitude: altitude);
+    final horizonY = IslandViewportLayout.horizonYFor(
+      size,
+      altitude: altitude,
+      referenceAltitude: horizonReferenceAltitude,
+    );
 
     _paintSky(canvas, size, horizonY);
     _paintSea(canvas, size, horizonY);
@@ -101,6 +112,7 @@ class _SceneryPainter extends CustomPainter {
       relativeBearing: relativeBearing,
       islandApproach: islandApproach,
       altitude: altitude,
+      referenceAltitude: horizonReferenceAltitude,
     );
     if (layout.mode != IslandViewportMode.onIsland) {
       _paintEdgeArrow(
@@ -229,6 +241,7 @@ class _SceneryPainter extends CustomPainter {
         oldDelegate.islandApproach != islandApproach ||
         oldDelegate.relativeBearing != relativeBearing ||
         oldDelegate.stormIntensity != stormIntensity ||
-        oldDelegate.altitude != altitude;
+        oldDelegate.altitude != altitude ||
+        oldDelegate.horizonReferenceAltitude != horizonReferenceAltitude;
   }
 }
