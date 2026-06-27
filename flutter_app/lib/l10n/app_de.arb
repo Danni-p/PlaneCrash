@@ -8,6 +8,7 @@
   "cockpitWaitingHint": "Warte auf Controller …",
   "cockpitEndSession": "Sitzung beenden",
   "cockpitConnecting": "Verbinde …",
+  "cockpitReconnecting": "Verbinde erneut …",
   "cockpitRealtimeReady": "Realtime verbunden — bereit für Controller",
   "cockpitRealtimeFailed": "Realtime-Verbindung fehlgeschlagen: {error}",
   "@cockpitRealtimeFailed": {
@@ -34,6 +35,7 @@
   "controllerSubscribeFailed": "Realtime-Verbindung fehlgeschlagen. Prüfe Internet und Supabase-Einstellungen.",
   "controllerSendFailed": "Senden fehlgeschlagen. Bitte erneut versuchen.",
   "controllerClaiming": "Controller wird übernommen …",
+  "controllerReconnecting": "Verbindung verloren — verbinde erneut …",
   "controllerAlreadyActive": "Für diesen Raum ist bereits ein Controller aktiv.",
   "controllerSessionEnded": "Das Cockpit hat die Sitzung beendet. Gib den Raumcode erneut ein, um dich neu zu verbinden.",
   "controllerLeftCounter": "Linke Seite",

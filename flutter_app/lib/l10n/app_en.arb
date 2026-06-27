@@ -8,6 +8,7 @@
   "cockpitWaitingHint": "Waiting for controllers to join…",
   "cockpitEndSession": "End session",
   "cockpitConnecting": "Connecting…",
+  "cockpitReconnecting": "Reconnecting…",
   "cockpitRealtimeReady": "Realtime connected — ready for controllers",
   "cockpitRealtimeFailed": "Realtime connection failed: {error}",
   "@cockpitRealtimeFailed": {
@@ -34,6 +35,7 @@
   "controllerSubscribeFailed": "Realtime connection failed. Check network and Supabase settings.",
   "controllerSendFailed": "Send failed. Please try again.",
   "controllerClaiming": "Claiming controller…",
+  "controllerReconnecting": "Connection lost — reconnecting…",
   "controllerAlreadyActive": "Another controller is already active for this room.",
   "controllerSessionEnded": "The cockpit ended the session. Re-enter the room code to reconnect.",
   "controllerLeftCounter": "Left side",

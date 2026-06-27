@@ -16,6 +16,7 @@ import '../services/audio_service.dart';
 import '../services/room_code_generator.dart';
 import '../services/supabase_service.dart';
 import '../utils/labels.dart';
+import '../utils/reconnect_guard.dart';
 import '../widgets/artificial_horizon.dart';
 import '../widgets/island_distance_overlay.dart';
 import '../widgets/island_viewport_layout.dart';
@@ -45,6 +46,8 @@ class _CockpitScreenState extends State<CockpitScreen>
 
   bool _realtimeReady = false;
   String? _realtimeError;
+  bool _isReconnecting = false;
+  final ReconnectGuard _reconnectGuard = ReconnectGuard();
 
   Duration _lastTick = Duration.zero;
   GamePhase _lastPhase = GamePhase.waiting;
@@ -104,6 +107,7 @@ class _CockpitScreenState extends State<CockpitScreen>
       debugPrint('Cockpit received phase action: ${message.action}');
       _gameState.applyPhaseAction(message.action);
     });
+    room.onConnectionStateChanged(_onConnectionStateChanged);
     final ok = await room.connect();
     if (!mounted) return;
     setState(() {
@@ -118,6 +122,34 @@ class _CockpitScreenState extends State<CockpitScreen>
         (_) => _checkControllerTimeout(),
       );
     }
+  }
+
+  void _onConnectionStateChanged(bool connected, String? error) {
+    if (!mounted) return;
+    setState(() {
+      _realtimeReady = connected;
+      _realtimeError = connected ? null : error;
+    });
+    if (!connected && _room != null) {
+      _reconnectRoom();
+    }
+  }
+
+  Future<void> _reconnectRoom() async {
+    final room = _room;
+    if (room == null) return;
+
+    await _reconnectGuard.run(() async {
+      if (!mounted || _room == null) return;
+      setState(() => _isReconnecting = true);
+      final ok = await room.reconnect();
+      if (!mounted) return;
+      setState(() {
+        _isReconnecting = false;
+        _realtimeReady = ok;
+        _realtimeError = ok ? null : (room.subscribeError ?? 'unknown');
+      });
+    });
   }
 
   bool _isFromActiveController(String source) {
@@ -374,20 +406,60 @@ class _CockpitScreenState extends State<CockpitScreen>
 
   Widget _buildTopBar(AppLocalizations l10n) {
     return SafeArea(
-      child: Align(
-        alignment: Alignment.topRight,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: OutlinedButton.icon(
-            onPressed: _endSession,
-            icon: const Icon(Icons.power_settings_new),
-            label: Text(l10n.cockpitEndSession),
-            style: OutlinedButton.styleFrom(
-              backgroundColor: Colors.black54,
-              foregroundColor: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildRoomCodeBadge(l10n),
+            OutlinedButton.icon(
+              onPressed: _endSession,
+              icon: const Icon(Icons.power_settings_new),
+              label: Text(l10n.cockpitEndSession),
+              style: OutlinedButton.styleFrom(
+                backgroundColor: Colors.black54,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRoomCodeBadge(AppLocalizations l10n) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.black54,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            l10n.cockpitWaitingTitle.toUpperCase(),
+            style: const TextStyle(
+              color: Colors.white54,
+              fontSize: 11,
+              letterSpacing: 1.2,
+              fontWeight: FontWeight.w600,
             ),
           ),
-        ),
+          const SizedBox(width: 8),
+          Text(
+            _roomCode,
+            style: const TextStyle(
+              color: Color(0xFF39FF14),
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.5,
+              shadows: [Shadow(color: Color(0xFF39FF14), blurRadius: 8)],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -465,6 +537,23 @@ class _CockpitScreenState extends State<CockpitScreen>
   }
 
   Widget _buildRealtimeStatus(AppLocalizations l10n) {
+    if (_isReconnecting) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            l10n.cockpitReconnecting,
+            style: const TextStyle(color: Colors.amberAccent),
+          ),
+        ],
+      );
+    }
     if (!_realtimeReady && _realtimeError == null) {
       return Row(
         mainAxisSize: MainAxisSize.min,
@@ -630,7 +719,7 @@ class _CockpitScreenState extends State<CockpitScreen>
               ),
             if (kDebugMode)
               Positioned(
-                top: 8 * scale,
+                top: 52 * scale,
                 left: 8 * scale,
                 child: Text(
                   'bank/person: ${state.bankPerPerson.toStringAsFixed(1)}°  '

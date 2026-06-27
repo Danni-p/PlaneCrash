@@ -14,6 +14,7 @@ import '../engine/physics_engine.dart';
 import '../services/room_code_generator.dart';
 import '../services/supabase_service.dart';
 import '../utils/labels.dart';
+import '../utils/reconnect_guard.dart';
 
 /// The phone controller: joins a room by code and sends partial updates. Cabin
 /// controls (counters, approach speed) can be pre-set locally; weather toggles
@@ -41,7 +42,10 @@ class _ControllerScreenState extends State<ControllerScreen> {
   bool _isSubscribed = false;
   bool _isActiveController = false;
   bool _isClaimPending = false;
+  bool _isReconnecting = false;
+  int _heartbeatFailures = 0;
   Timer? _heartbeatTimer;
+  final ReconnectGuard _reconnectGuard = ReconnectGuard();
 
   // Local mirror of the game phase, kept in sync via observed phase actions.
   GamePhase _phase = GamePhase.waiting;
@@ -101,6 +105,8 @@ class _ControllerScreenState extends State<ControllerScreen> {
     final room = SupabaseService.openRoom(code)
       ..onPhaseAction((message) => _observePhaseAction(message.action))
       ..onControllerClaimResponse(_onControllerClaimResponse)
+      ..onControllerReleased(_onControllerReleased)
+      ..onConnectionStateChanged(_onConnectionStateChanged)
       ..onSessionCancel(_onSessionCancelled);
 
     final ok = await room.connect();
@@ -133,13 +139,59 @@ class _ControllerScreenState extends State<ControllerScreen> {
 
   void _requestControllerClaim() {
     final room = _room;
-    if (!_isSubscribed || room == null) return;
+    if (room == null) return;
     room.sendControllerClaimRequest(
       ControllerClaimRequest(
         source: _source,
         requestedAtMs: DateTime.now().millisecondsSinceEpoch,
       ),
     );
+  }
+
+  void _onControllerReleased(ControllerReleased released) {
+    if (released.activeSource != _source || _room == null || _sessionEnded) return;
+    _heartbeatTimer?.cancel();
+    if (!mounted) return;
+    setState(() {
+      _isActiveController = false;
+      _isClaimPending = true;
+      _heartbeatFailures = 0;
+    });
+    _reconnectAndReclaim();
+  }
+
+  void _onConnectionStateChanged(bool connected, String? error) {
+    if (!mounted || _room == null || _sessionEnded) return;
+    setState(() => _isSubscribed = connected);
+    if (!connected) {
+      _reconnectAndReclaim();
+    }
+  }
+
+  Future<void> _reconnectAndReclaim() async {
+    final room = _room;
+    if (room == null || _sessionEnded) return;
+
+    await _reconnectGuard.run(() async {
+      if (!mounted || _room == null || _sessionEnded) return;
+      setState(() {
+        _isReconnecting = true;
+        _isClaimPending = true;
+        _isActiveController = false;
+      });
+      _heartbeatTimer?.cancel();
+
+      final ok = await room.reconnect();
+      if (!mounted || _room == null) return;
+
+      setState(() {
+        _isSubscribed = ok;
+        _isReconnecting = false;
+      });
+
+      if (!ok) return;
+      _requestControllerClaim();
+    });
   }
 
   void _onControllerClaimResponse(ControllerClaimResponse response) async {
@@ -167,18 +219,38 @@ class _ControllerScreenState extends State<ControllerScreen> {
     setState(() {
       _isActiveController = true;
       _isClaimPending = false;
+      _isReconnecting = false;
+      _heartbeatFailures = 0;
     });
 
+    _flushAllControls();
+    _startHeartbeatTimer();
+  }
+
+  void _startHeartbeatTimer() {
     _heartbeatTimer?.cancel();
-    _heartbeatTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
       final room = _room;
-      if (!_isSubscribed || !_isActiveController || room == null) return;
-      room.sendControllerHeartbeat(
+      if (!_isActiveController || room == null) return;
+
+      final result = await room.sendControllerHeartbeat(
         ControllerHeartbeat(
           source: _source,
           tMs: DateTime.now().millisecondsSinceEpoch,
         ),
       );
+      if (!mounted || !_isActiveController) return;
+
+      if (result == BroadcastSendResult.ok) {
+        _heartbeatFailures = 0;
+        return;
+      }
+
+      _heartbeatFailures++;
+      if (_heartbeatFailures >= 2) {
+        _heartbeatFailures = 0;
+        _reconnectAndReclaim();
+      }
     });
   }
 
@@ -198,9 +270,10 @@ class _ControllerScreenState extends State<ControllerScreen> {
   void _onSessionCancelled() {
     _briefingTimer?.cancel();
     _heartbeatTimer?.cancel();
-    _room?.disconnect();
+    final room = _room;
+    _room = null;
+    room?.disconnect();
     setState(() {
-      _room = null;
       _roomCode = null;
       _sessionEnded = true;
       _isSubscribed = false;
@@ -411,7 +484,9 @@ class _ControllerScreenState extends State<ControllerScreen> {
             const CircularProgressIndicator(),
             const SizedBox(height: 16),
             Text(
-              l10n.controllerClaiming,
+              _isReconnecting
+                  ? l10n.controllerReconnecting
+                  : l10n.controllerClaiming,
               textAlign: TextAlign.center,
             ),
           ],
