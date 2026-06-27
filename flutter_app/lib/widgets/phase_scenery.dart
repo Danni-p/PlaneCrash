@@ -3,17 +3,15 @@ import 'package:flutter/material.dart';
 import '../models/game_phase.dart';
 import 'island_viewport_layout.dart';
 
-/// Full-screen background scenery for the cockpit. During cruise a distant
-/// landmass drifts closer (purely cosmetic). Once the emergency landing begins
-/// the target island is placed on the horizon according to its bearing relative
-/// to the plane's heading: centered when dead ahead, sliding sideways as the
-/// plane turns, and replaced by an edge arrow once it leaves the field of view.
-/// A thunderstorm darkens the sky.
+/// Full-screen background scenery for the cockpit. The target island appears
+/// once the emergency landing begins and is placed on the horizon according to
+/// its bearing relative to the plane's heading: centered when dead ahead,
+/// sliding sideways as the plane turns, and replaced by an edge arrow once it
+/// leaves the field of view. A thunderstorm darkens the sky.
 class PhaseScenery extends StatelessWidget {
   const PhaseScenery({
     super.key,
     required this.phase,
-    required this.cruiseProgress,
     required this.islandApproach,
     required this.relativeBearing,
     required this.stormIntensity,
@@ -22,9 +20,6 @@ class PhaseScenery extends StatelessWidget {
   });
 
   final GamePhase phase;
-
-  /// Cosmetic land approach during cruise, 0..1.
-  final double cruiseProgress;
 
   /// Target island approach (1 - distance/initialDistance), 0..1.
   final double islandApproach;
@@ -48,7 +43,6 @@ class PhaseScenery extends StatelessWidget {
       child: CustomPaint(
         painter: _SceneryPainter(
           phase: phase,
-          cruiseProgress: cruiseProgress,
           islandApproach: islandApproach,
           relativeBearing: relativeBearing,
           stormIntensity: stormIntensity,
@@ -63,7 +57,6 @@ class PhaseScenery extends StatelessWidget {
 class _SceneryPainter extends CustomPainter {
   _SceneryPainter({
     required this.phase,
-    required this.cruiseProgress,
     required this.islandApproach,
     required this.relativeBearing,
     required this.stormIntensity,
@@ -72,7 +65,6 @@ class _SceneryPainter extends CustomPainter {
   });
 
   final GamePhase phase;
-  final double cruiseProgress;
   final double islandApproach;
   final double relativeBearing;
   final double stormIntensity;
@@ -90,16 +82,7 @@ class _SceneryPainter extends CustomPainter {
     _paintSky(canvas, size, horizonY);
     _paintSea(canvas, size, horizonY);
 
-    if (phase == GamePhase.cruise) {
-      _paintLand(
-        canvas,
-        size,
-        horizonY,
-        centerX: size.width / 2,
-        progress: cruiseProgress,
-        scale: 0.35,
-      );
-    } else if (phase == GamePhase.emergency || phase == GamePhase.finished) {
+    if (phase == GamePhase.emergency || phase == GamePhase.finished) {
       _paintTargetIsland(canvas, size, horizonY);
     }
   }
@@ -183,9 +166,7 @@ class _SceneryPainter extends CustomPainter {
   }
 
   /// Draws the landmass sitting on the horizon at [centerX]. [progress] (0..1)
-  /// drives how large and close it appears; [scale] caps the maximum size
-  /// (cruise land stays small and distant, the target island can fill more of
-  /// the view).
+  /// drives how large and close it appears; [scale] caps the maximum size.
   void _paintLand(
     Canvas canvas,
     Size size,
@@ -237,7 +218,6 @@ class _SceneryPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _SceneryPainter oldDelegate) {
     return oldDelegate.phase != phase ||
-        oldDelegate.cruiseProgress != cruiseProgress ||
         oldDelegate.islandApproach != islandApproach ||
         oldDelegate.relativeBearing != relativeBearing ||
         oldDelegate.stormIntensity != stormIntensity ||

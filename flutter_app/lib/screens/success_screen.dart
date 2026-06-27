@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../l10n/app_localizations.dart';
+import '../services/audio_service.dart';
 import '../models/weather_inputs.dart';
 import '../utils/labels.dart';
 
@@ -30,10 +31,21 @@ class SuccessScreen extends StatefulWidget {
 }
 
 class _SuccessScreenState extends State<SuccessScreen> {
+  final AudioService _audio = AudioService();
+
   @override
   void initState() {
     super.initState();
     HapticFeedback.heavyImpact();
+    if (widget.distanceToIsland > 0) {
+      _audio.playWaterImpact();
+    }
+  }
+
+  @override
+  void dispose() {
+    _audio.dispose();
+    super.dispose();
   }
 
   @override

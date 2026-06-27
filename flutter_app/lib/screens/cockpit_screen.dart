@@ -54,7 +54,6 @@ class _CockpitScreenState extends State<CockpitScreen>
   GamePhase _lastPhase = GamePhase.waiting;
   WeatherInputs _lastWeather = const WeatherInputs();
   bool _navigated = false;
-  bool _waterImpactPlayed = false;
   double _flicker = 0.0;
 
   static const Duration _controllerHeartbeatInterval = Duration(seconds: 3);
@@ -256,7 +255,6 @@ class _CockpitScreenState extends State<CockpitScreen>
         case GamePhase.waiting:
           if (previous != GamePhase.waiting) {
             _audio.stopAll();
-            _waterImpactPlayed = false;
             _lastWeather = const WeatherInputs();
           }
       }
@@ -292,13 +290,8 @@ class _CockpitScreenState extends State<CockpitScreen>
     }
   }
 
-  Future<void> _handleFinished() async {
+  void _handleFinished() {
     if (_navigated) return;
-    if (!_waterImpactPlayed && _gameState.distanceToIsland > 0) {
-      _waterImpactPlayed = true;
-      await _audio.playWaterImpact();
-      await Future.delayed(const Duration(milliseconds: 300));
-    }
     _goToSuccess();
   }
 
@@ -385,7 +378,6 @@ class _CockpitScreenState extends State<CockpitScreen>
             children: [
               PhaseScenery(
                 phase: state.phase,
-                cruiseProgress: state.cruiseProgress,
                 islandApproach: islandApproach,
                 relativeBearing: state.relativeBearing,
                 stormIntensity: state.stormIntensity,

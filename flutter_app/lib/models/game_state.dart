@@ -24,9 +24,6 @@ class GameState extends ChangeNotifier {
   /// cockpit and controllers advance from malfunction to briefing in step.
   static const Duration malfunctionDuration = Duration(seconds: 8);
 
-  /// Seconds for the distant land to visually approach during cruise.
-  static const double _cruiseApproachSeconds = 25.0;
-
   /// Default plane/island layout used before the emergency reveals the island.
   /// Plane at the origin, island straight ahead at the starting distance.
   static const NavigationState _initialNav =
@@ -41,7 +38,6 @@ class GameState extends ChangeNotifier {
   int _counterLeft = 0;
   int _counterRight = 0;
   WeatherInputs _weather = const WeatherInputs();
-  double _cruiseProgress = 0.0;
 
   NavigationState _nav = _initialNav;
   math.Point<double> _island = _initialIsland;
@@ -106,9 +102,6 @@ class GameState extends ChangeNotifier {
   int get activeTotal => _counterLeft + _counterRight;
   WeatherInputs get weather => _weather;
 
-  /// Cosmetic land-approach progress during cruise, 0..1.
-  double get cruiseProgress => _cruiseProgress;
-
   /// Smoothed bank angle for the artificial horizon, in degrees.
   double get displayBankAngle => _bank.value;
 
@@ -149,11 +142,6 @@ class GameState extends ChangeNotifier {
       _windGust.advance(dt, _random);
     }
     _bank.update(target: _targetBankAngle, dt: dt);
-
-    if (_phase == GamePhase.cruise) {
-      _cruiseProgress =
-          math.min(1.0, _cruiseProgress + dt / _cruiseApproachSeconds);
-    }
 
     if (_phase == GamePhase.emergency) {
       if (isAltitudeCountdownActive) {
@@ -353,7 +341,6 @@ class GameState extends ChangeNotifier {
     _counterLeft = 0;
     _counterRight = 0;
     _weather = const WeatherInputs();
-    _cruiseProgress = 0.0;
     _nav = _initialNav;
     _island = _initialIsland;
     _peakLeft = 0;
