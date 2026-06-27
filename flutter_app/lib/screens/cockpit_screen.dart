@@ -47,6 +47,7 @@ class _CockpitScreenState extends State<CockpitScreen>
   bool _realtimeReady = false;
   String? _realtimeError;
   bool _isReconnecting = false;
+  bool _suppressAutoReconnect = false;
   final ReconnectGuard _reconnectGuard = ReconnectGuard();
 
   Duration _lastTick = Duration.zero;
@@ -130,7 +131,7 @@ class _CockpitScreenState extends State<CockpitScreen>
       _realtimeReady = connected;
       _realtimeError = connected ? null : error;
     });
-    if (!connected && _room != null) {
+    if (!connected && _room != null && !_suppressAutoReconnect) {
       _reconnectRoom();
     }
   }
@@ -321,16 +322,36 @@ class _CockpitScreenState extends State<CockpitScreen>
   }
 
   Future<void> _endSession() async {
-    await _room?.sendSessionCancel();
-    await _room?.disconnect();
-    _gameState.resetToWaiting();
-    _audio.stopAll();
-    if (!SupabaseService.isConfigured) return;
-    await _openRoom();
+    _suppressAutoReconnect = true;
+    try {
+      _activeControllerSource = null;
+      _activeControllerLastHeartbeat = null;
+      await _room?.sendSessionCancel();
+      _gameState.resetToWaiting();
+      _audio.stopAll();
+
+      final room = _room;
+      if (room != null) {
+        if (!mounted) return;
+        setState(() => _isReconnecting = true);
+        final ok = await room.reconnect();
+        if (!mounted) return;
+        setState(() {
+          _isReconnecting = false;
+          _realtimeReady = ok;
+          _realtimeError = ok ? null : (room.subscribeError ?? 'unknown');
+        });
+      } else if (SupabaseService.isConfigured) {
+        await _openRoom();
+      }
+    } finally {
+      _suppressAutoReconnect = false;
+    }
   }
 
   @override
   void dispose() {
+    _suppressAutoReconnect = true;
     _ticker.dispose();
     _gameState.removeListener(_onGameStateChanged);
     _gameState.dispose();

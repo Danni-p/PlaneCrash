@@ -36,6 +36,7 @@ class IslandDistanceOverlay extends StatelessWidget {
           islandApproach: islandApproach,
           altitude: altitude,
           referenceAltitude: horizonReferenceAltitude,
+          viewportPaddingTop: MediaQuery.paddingOf(context).top,
         );
 
         return IgnorePointer(

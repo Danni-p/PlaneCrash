@@ -32,6 +32,8 @@ abstract final class IslandViewportLayout {
   static const double arrowHalfHeight = 26.0;
   static const double arrowDepth = 28.0;
   static const double labelPadding = 12.0;
+  static const double labelEstimatedHeight = 34.0;
+  static const double labelTopInset = 8.0;
   static const double arrowLabelGap = 8.0;
 
   /// Normalized distance floor for inverse visual scaling (100 m at 10 km spawn).
@@ -106,6 +108,21 @@ abstract final class IslandViewportLayout {
   static double arrowBaseX(double tipX, {required bool toRight}) =>
       toRight ? tipX - arrowDepth : tipX + arrowDepth;
 
+  /// Keeps the distance label inside the visible sky band when the island peak
+  /// rises above the viewport during low-altitude final approach.
+  static double clampLabelBottomY({
+    required double idealBottomY,
+    required double horizonY,
+    double viewportPaddingTop = 0.0,
+  }) {
+    final minBottomY =
+        viewportPaddingTop + labelTopInset + labelEstimatedHeight;
+    final maxBottomY = horizonY - labelPadding;
+    final lower = math.min(minBottomY, maxBottomY);
+    final upper = math.max(minBottomY, maxBottomY);
+    return idealBottomY.clamp(lower, upper);
+  }
+
   /// Computes label anchor and scenery fields for the emergency target island.
   static ({
     IslandViewportMode mode,
@@ -124,6 +141,7 @@ abstract final class IslandViewportLayout {
     required double altitude,
     required double referenceAltitude,
     double scale = 1.0,
+    double viewportPaddingTop = 0.0,
   }) {
     final horizonY = horizonYFor(
       size,
@@ -162,9 +180,15 @@ abstract final class IslandViewportLayout {
       horizonY: horizonY,
     );
 
+    final labelBottomY = clampLabelBottomY(
+      idealBottomY: land.peakY - labelPadding,
+      horizonY: horizonY,
+      viewportPaddingTop: viewportPaddingTop,
+    );
+
     return (
       mode: IslandViewportMode.onIsland,
-      labelPosition: Offset(centerX, land.peakY - labelPadding),
+      labelPosition: Offset(centerX, labelBottomY),
       labelFractionalTranslation: const Offset(-0.5, -1.0),
       horizonY: horizonY,
       islandCenterX: centerX,

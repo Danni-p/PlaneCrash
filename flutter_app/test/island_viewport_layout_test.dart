@@ -228,5 +228,46 @@ void main() {
       );
       expect(layout.labelFractionalTranslation, const Offset(0.0, -0.5));
     });
+
+    test('low altitude and close approach keeps label on screen', () {
+      final layout = IslandViewportLayout.forTarget(
+        size: size,
+        relativeBearing: 0,
+        islandApproach: 1.0,
+        altitude: 0,
+        referenceAltitude: highAltitude,
+      );
+
+      expect(layout.mode, IslandViewportMode.onIsland);
+      expect(layout.labelPosition.dy, greaterThan(0));
+
+      final horizonY = IslandViewportLayout.horizonYFor(
+        size,
+        altitude: 0,
+        referenceAltitude: highAltitude,
+      );
+      expect(layout.labelPosition.dy, lessThan(horizonY));
+
+      final land = IslandViewportLayout.landMetrics(
+        size: size,
+        progress: 1.0,
+        scale: 1.0,
+        horizonY: horizonY,
+      );
+      expect(
+        land.peakY - IslandViewportLayout.labelPadding,
+        lessThan(0),
+      );
+      expect(
+        layout.labelPosition.dy,
+        closeTo(
+          IslandViewportLayout.clampLabelBottomY(
+            idealBottomY: land.peakY - IslandViewportLayout.labelPadding,
+            horizonY: horizonY,
+          ),
+          1e-9,
+        ),
+      );
+    });
   });
 }
